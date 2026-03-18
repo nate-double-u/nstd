@@ -7,6 +7,7 @@ Spec references:
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import patch
 
 import pytest
@@ -38,6 +39,25 @@ class TestRootCommand:
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
         assert "nstd" in result.output.lower() or "0." in result.output
+
+
+class TestGetVersion:
+    """_get_version should return version from package metadata."""
+
+    def test_returns_version_string(self):
+        """Should return a version string."""
+        from nstd.cli import _get_version
+
+        ver = _get_version()
+        assert isinstance(ver, str)
+        assert len(ver) > 0
+
+    @patch("nstd.cli.version", side_effect=PackageNotFoundError)
+    def test_fallback_on_missing_package(self, _mock_version):
+        """Should return dev version when package is not installed."""
+        from nstd.cli import _get_version
+
+        assert _get_version() == "0.1.0-dev"
 
 
 # --- Setup command tests ---
@@ -130,6 +150,20 @@ class TestStatusCommand:
         assert "Last sync" in result.output
         assert "Fetched: 10" in result.output
         assert "Updated: 5" in result.output
+
+    @patch("nstd.cli._get_db_path")
+    def test_status_db_exists_no_schema(self, mock_db_path, runner, tmp_path):
+        """Status with DB file but no schema should report 'never synced'."""
+        import sqlite3
+
+        db_file = tmp_path / "nstd.db"
+        # Create an empty DB file (no tables)
+        sqlite3.connect(str(db_file)).close()
+        mock_db_path.return_value = str(db_file)
+
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "never" in result.output.lower() or "no sync" in result.output.lower()
 
     @patch("nstd.cli._get_db_path")
     def test_status_missing_dir(self, mock_db_path, runner, tmp_path):
@@ -229,6 +263,19 @@ class TestLogsCommand:
     def test_logs_missing_dir(self, mock_db_path, runner, tmp_path):
         """Logs with missing config dir should report 'no entries'."""
         mock_db_path.return_value = str(tmp_path / "nonexistent" / "nstd.db")
+
+        result = runner.invoke(cli, ["logs"])
+        assert result.exit_code == 0
+        assert "no" in result.output.lower()
+
+    @patch("nstd.cli._get_db_path")
+    def test_logs_db_exists_no_schema(self, mock_db_path, runner, tmp_path):
+        """Logs with DB file but no schema should report 'no entries'."""
+        import sqlite3
+
+        db_file = tmp_path / "nstd.db"
+        sqlite3.connect(str(db_file)).close()
+        mock_db_path.return_value = str(db_file)
 
         result = runner.invoke(cli, ["logs"])
         assert result.exit_code == 0

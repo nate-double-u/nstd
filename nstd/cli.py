@@ -18,6 +18,7 @@ import os
 import shlex
 import sqlite3
 import subprocess
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import click
@@ -33,18 +34,44 @@ def _get_db_path() -> str:
     return str(_DEFAULT_DB_PATH)
 
 
+def _get_version() -> str:
+    """Get the package version from installed metadata."""
+    try:
+        return version("nstd")
+    except PackageNotFoundError:
+        return "0.1.0-dev"
+
+
 def _safe_get_connection(db_path: str) -> sqlite3.Connection | None:
-    """Open a DB connection, returning None if the path doesn't exist."""
-    db_dir = Path(db_path).parent
-    if not db_dir.exists():
+    """Open a DB connection, returning None if the DB doesn't exist.
+
+    Returns None if the parent directory or the DB file itself doesn't exist,
+    preventing read-only CLI commands from creating empty databases.
+    """
+    db_file = Path(db_path)
+    if not db_file.parent.exists() or not db_file.exists():
         return None
     conn = get_connection(db_path)
     create_schema(conn)
     return conn
 
 
+def _safe_get_readonly_connection(db_path: str) -> sqlite3.Connection | None:
+    """Open a read-only DB connection without WAL mode or schema creation.
+
+    Used by status/logs commands to avoid side effects on the database.
+    Returns None if the DB file doesn't exist.
+    """
+    db_file = Path(db_path)
+    if not db_file.exists():
+        return None
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 @click.group(invoke_without_command=True)
-@click.version_option(version="0.1.0", prog_name="nstd")
+@click.version_option(version=_get_version(), prog_name="nstd")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """nstd - Nate's Stuff To Do. Personal task synchronisation daemon and TUI."""
@@ -78,14 +105,19 @@ def sync(source: str | None, daemon: bool) -> None:
 def status() -> None:
     """Print last sync status to stdout."""
     db_path = _get_db_path()
-    conn = _safe_get_connection(db_path)
+    conn = _safe_get_readonly_connection(db_path)
 
     if conn is None:
         click.echo("No sync has been run yet (never synced). Run 'nstd setup' first.")
         return
 
-    row = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
+    except sqlite3.OperationalError:
+        click.echo("No sync has been run yet (never synced).")
+        return
+    finally:
+        conn.close()
 
     if row is None:
         click.echo("No sync has been run yet (never synced).")
@@ -116,21 +148,28 @@ def config_cmd() -> None:
         return  # pragma: no cover
 
     cmd = [*shlex.split(editor), str(config_path)]
-    subprocess.run(cmd, check=False)  # pragma: no cover
+    result = subprocess.run(cmd, check=False)  # pragma: no cover
+    if result.returncode != 0:  # pragma: no cover
+        raise click.ClickException(f"Editor exited with code {result.returncode}")
 
 
 @cli.command()
 def logs() -> None:
     """Show recent sync log entries."""
     db_path = _get_db_path()
-    conn = _safe_get_connection(db_path)
+    conn = _safe_get_readonly_connection(db_path)
 
     if conn is None:
         click.echo("No sync log entries found. Run 'nstd setup' first.")
         return
 
-    rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20").fetchall()
-    conn.close()
+    try:
+        rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20").fetchall()
+    except sqlite3.OperationalError:
+        click.echo("No sync log entries found.")
+        return
+    finally:
+        conn.close()
 
     if not rows:
         click.echo("No sync log entries found.")
