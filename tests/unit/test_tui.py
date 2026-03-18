@@ -207,7 +207,7 @@ class TestLoadSyncLog:
         from nstd.tui.app import load_sync_log
 
         for i in range(5):
-            log_id = start_sync_log(conn, source="all")
+            log_id = start_sync_log(conn, source=None)
             complete_sync_log(conn, log_id, records_fetched=i * 10, records_updated=i * 5)
 
         entries = load_sync_log(conn)
@@ -218,7 +218,7 @@ class TestLoadSyncLog:
         from nstd.tui.app import load_sync_log
 
         for i in range(25):
-            log_id = start_sync_log(conn, source="all")
+            log_id = start_sync_log(conn, source=None)
             complete_sync_log(conn, log_id, records_fetched=i, records_updated=i)
 
         entries = load_sync_log(conn)
@@ -228,9 +228,9 @@ class TestLoadSyncLog:
         from nstd.db import complete_sync_log, start_sync_log
         from nstd.tui.app import load_sync_log
 
-        log1 = start_sync_log(conn, source="all")
+        log1 = start_sync_log(conn, source=None)
         complete_sync_log(conn, log1, records_fetched=10, records_updated=5)
-        log2 = start_sync_log(conn, source="all")
+        log2 = start_sync_log(conn, source=None)
         complete_sync_log(conn, log2, records_fetched=20, records_updated=10)
 
         entries = load_sync_log(conn)
@@ -278,7 +278,7 @@ class TestLoadConflicts:
         # Resolve directly in DB (resolve_conflict may be on another branch)
         conn.execute(
             "UPDATE conflicts SET resolved_at = '2026-03-18T12:00:00Z', "
-            "resolution = 'github' WHERE task_id = ?",
+            "resolution = 'github_wins' WHERE task_id = ?",
             ("gh:cncf/staff:1",),
         )
         conn.commit()

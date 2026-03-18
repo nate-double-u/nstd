@@ -409,5 +409,7 @@ def get_recent_sync_logs(conn: sqlite3.Connection, limit: int = 20) -> list[dict
     Returns:
         List of sync log dicts.
     """
-    rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM sync_log ORDER BY started_at DESC, id DESC LIMIT ?", (limit,)
+    ).fetchall()
     return [dict(r) for r in rows]
