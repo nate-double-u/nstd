@@ -237,6 +237,14 @@ class TestWriteConfigToml:
         assert parsed["tags"][0] == 'value "with" quotes'
         assert parsed["tags"][1] == "back\\slash"
 
+    def test_non_string_list_element_raises_error(self, tmp_path):
+        """List elements that are not strings should raise TypeError."""
+        from nstd.setup import write_config_toml
+
+        config = {"tags": ["valid", 42]}
+        with pytest.raises(TypeError, match="Unsupported list element type"):
+            write_config_toml(config, config_dir=tmp_path)
+
 
 # --- Plist generation tests ---
 
@@ -632,12 +640,12 @@ class TestStoreCredentials:
             mock_set.assert_called_once_with("nstd-jira", "user@test.com", "api_token_123")
 
     def test_stores_asana_token(self):
-        """Should store Asana PAT in Keychain."""
+        """Should store Asana PAT in Keychain under GitHub username."""
         from nstd.setup import store_asana_token
 
         with patch("nstd.setup.set_credential") as mock_set:
-            store_asana_token("asana_pat_123")
-            mock_set.assert_called_once_with("nstd-asana", "default", "asana_pat_123")
+            store_asana_token("asana_pat_123", "nate-double-u")
+            mock_set.assert_called_once_with("nstd-asana", "nate-double-u", "asana_pat_123")
 
 
 # --- Helper ---

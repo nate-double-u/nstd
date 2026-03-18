@@ -147,7 +147,11 @@ def _dict_to_toml(data: dict, prefix: str = "") -> str:
         if isinstance(value, dict):
             sections.append((key, value))
         elif isinstance(value, list):
-            items = ", ".join(f'"{_escape_toml_string(str(v))}"' for v in value)
+            for i, v in enumerate(value):
+                if not isinstance(v, str):
+                    msg = f"Unsupported list element type for key '{key}[{i}]': {type(v).__name__}"
+                    raise TypeError(msg)
+            items = ", ".join(f'"{_escape_toml_string(v)}"' for v in value)
             lines.append(f"{key} = [{items}]")
         elif isinstance(value, bool):
             lines.append(f"{key} = {'true' if value else 'false'}")
@@ -443,6 +447,6 @@ def store_jira_credentials(api_token: str, username: str) -> None:
     set_credential("nstd-jira", username, api_token)
 
 
-def store_asana_token(token: str) -> None:
+def store_asana_token(token: str, username: str) -> None:
     """Store Asana PAT in macOS Keychain."""
-    set_credential("nstd-asana", "default", token)
+    set_credential("nstd-asana", username, token)
