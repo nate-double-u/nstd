@@ -535,3 +535,51 @@ class TestConflictEdgeCases:
         )
 
         assert len(conflicts) == 1
+
+    def test_unsupported_mode_raises(self, conn):
+        """Unsupported conflict resolution modes should raise ValueError."""
+        stored = _make_task("gh:cncf/staff:502", "github", priority="P2")
+        upsert_task(conn, stored)
+
+        with pytest.raises(ValueError, match="Unsupported conflict resolution mode"):
+            detect_conflicts(
+                conn,
+                task_id="gh:cncf/staff:502",
+                github_values={"priority": "P1"},
+                other_values={"priority": "P3"},
+                other_source="jira",
+                mode="github_wins",
+            )
+
+    def test_numeric_field_int_vs_float_no_false_conflict(self, conn):
+        """Numeric fields should not create false conflicts from int vs float."""
+        stored = _make_task("gh:cncf/staff:503", "github", estimate_hours=4.0)
+        upsert_task(conn, stored)
+
+        # GitHub sends int 4, other sends float 4.0 — same value, no conflict
+        conflicts = detect_conflicts(
+            conn,
+            task_id="gh:cncf/staff:503",
+            github_values={"estimate_hours": 4},
+            other_values={"estimate_hours": 4.0},
+            other_source="jira",
+        )
+
+        assert len(conflicts) == 0
+
+    def test_numeric_field_genuine_conflict(self, conn):
+        """Numeric fields with genuinely different values should conflict."""
+        stored = _make_task("gh:cncf/staff:504", "github", estimate_hours=4.0)
+        upsert_task(conn, stored)
+
+        # Both changed from 4.0 to different values
+        conflicts = detect_conflicts(
+            conn,
+            task_id="gh:cncf/staff:504",
+            github_values={"estimate_hours": 6},
+            other_values={"estimate_hours": 8.0},
+            other_source="jira",
+        )
+
+        assert len(conflicts) == 1
+        assert conflicts[0]["field"] == "estimate_hours"

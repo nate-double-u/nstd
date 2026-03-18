@@ -29,6 +29,25 @@ COMPARABLE_FIELDS = frozenset(
 
 VALID_RESOLUTIONS = frozenset({"github_wins", "other_wins", "manual"})
 
+# Fields stored as numeric types in SQLite (REAL columns)
+_NUMERIC_FIELDS = frozenset({"estimate_hours"})
+
+
+def _normalize_value(field: str, value) -> str | None:
+    """Normalize a field value for comparison and storage.
+
+    Numeric fields are compared as floats to avoid false conflicts
+    from type differences (e.g., int 1 vs float 1.0).
+    """
+    if value is None:
+        return None
+    if field in _NUMERIC_FIELDS:
+        try:
+            return str(float(value))
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
 
 def _now_iso() -> str:
     """Current UTC time as ISO 8601 string."""
@@ -62,8 +81,13 @@ def detect_conflicts(
         List of newly created conflict dicts (empty if no conflicts).
 
     Raises:
-        ValueError: If the task doesn't exist in the database.
+        ValueError: If the task doesn't exist in the database or mode is unsupported.
     """
+    if mode != "always_ask":
+        raise ValueError(
+            f"Unsupported conflict resolution mode '{mode}'. Only 'always_ask' is supported in v1."
+        )
+
     stored = get_task(conn, task_id)
     if stored is None:
         raise ValueError(f"Task '{task_id}' not found in database")
@@ -77,26 +101,27 @@ def detect_conflicts(
         gh_value = github_values[field]
         other_value = other_values[field]
 
-        # Normalize to strings for comparison (stored values come back as strings from SQLite)
-        stored_str = str(stored_value) if stored_value is not None else None
-        gh_str = str(gh_value) if gh_value is not None else None
-        other_str = str(other_value) if other_value is not None else None
+        # Normalize values for type-safe comparison (SQLite preserves types,
+        # so numeric fields need float normalization to avoid 1 vs 1.0 mismatches)
+        stored_norm = _normalize_value(field, stored_value)
+        gh_norm = _normalize_value(field, gh_value)
+        other_norm = _normalize_value(field, other_value)
 
-        github_changed = gh_str != stored_str
-        other_changed = other_str != stored_str
-        values_differ = gh_str != other_str
+        github_changed = gh_norm != stored_norm
+        other_changed = other_norm != stored_norm
+        values_differ = gh_norm != other_norm
 
         if github_changed and other_changed and values_differ:
             # Check if this exact conflict already exists (unresolved or resolved)
-            if _conflict_already_exists(conn, task_id, field, gh_str, other_str, other_source):
+            if _conflict_already_exists(conn, task_id, field, gh_norm, other_norm, other_source):
                 continue
 
             conflict_id = record_conflict(
                 conn,
                 task_id=task_id,
                 field=field,
-                value_github=gh_str,
-                value_other=other_str,
+                value_github=gh_norm,
+                value_other=other_norm,
                 other_source=other_source,
             )
 
@@ -105,8 +130,8 @@ def detect_conflicts(
                     "id": conflict_id,
                     "task_id": task_id,
                     "field": field,
-                    "value_github": gh_str,
-                    "value_other": other_str,
+                    "value_github": gh_norm,
+                    "value_other": other_norm,
                     "other_source": other_source,
                 }
             )
