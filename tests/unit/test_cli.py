@@ -40,6 +40,12 @@ class TestRootCommand:
         assert result.exit_code == 0
         assert "nstd" in result.output.lower() or "0." in result.output
 
+    def test_no_subcommand_launches_tui(self, runner):
+        """Running nstd with no subcommand should indicate TUI launch."""
+        result = runner.invoke(cli, [])
+        assert result.exit_code == 0
+        assert "TUI" in result.output
+
 
 class TestGetVersion:
     """_get_version should return version from package metadata."""
@@ -77,6 +83,12 @@ class TestSetupCommand:
         assert result.exit_code == 0
         assert "setup" in result.output.lower()
 
+    def test_setup_runs(self, runner):
+        """nstd setup should output setup wizard message."""
+        result = runner.invoke(cli, ["setup"])
+        assert result.exit_code == 0
+        assert "setup wizard" in result.output.lower()
+
 
 # --- Sync command tests ---
 
@@ -103,6 +115,24 @@ class TestSyncCommand:
         """nstd sync should accept --daemon flag."""
         result = runner.invoke(cli, ["sync", "--help"])
         assert "--daemon" in result.output
+
+    def test_sync_full(self, runner):
+        """nstd sync with no options should run full sync."""
+        result = runner.invoke(cli, ["sync"])
+        assert result.exit_code == 0
+        assert "full sync" in result.output.lower()
+
+    def test_sync_with_source(self, runner):
+        """nstd sync --source github should sync that source."""
+        result = runner.invoke(cli, ["sync", "--source", "github"])
+        assert result.exit_code == 0
+        assert "github" in result.output.lower()
+
+    def test_sync_daemon_mode(self, runner):
+        """nstd sync --daemon should start daemon mode."""
+        result = runner.invoke(cli, ["sync", "--daemon"])
+        assert result.exit_code == 0
+        assert "daemon" in result.output.lower()
 
 
 # --- Status command tests ---
@@ -374,3 +404,9 @@ class TestBlockCommand:
         """nstd block without task-id should fail."""
         result = runner.invoke(cli, ["block"])
         assert result.exit_code != 0
+
+    def test_block_with_task_id(self, runner):
+        """nstd block with task-id should show scheduling dialog message."""
+        result = runner.invoke(cli, ["block", "gh:cncf/staff:42"])
+        assert result.exit_code == 0
+        assert "gh:cncf/staff:42" in result.output

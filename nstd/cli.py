@@ -61,13 +61,13 @@ def cli(ctx: click.Context) -> None:
     """nstd - Nate's Stuff To Do. Personal task synchronisation daemon and TUI."""
     if ctx.invoked_subcommand is None:
         # Default: launch TUI
-        click.echo("Launching TUI... (not yet fully wired)")  # pragma: no cover
+        click.echo("Launching TUI... (not yet fully wired)")
 
 
 @cli.command()
 def setup() -> None:
     """Interactive first-run setup wizard."""
-    click.echo("Starting setup wizard...")  # pragma: no cover
+    click.echo("Starting setup wizard...")
 
 
 @cli.command()
@@ -78,11 +78,11 @@ def setup() -> None:
 def sync(source: str | None, daemon: bool) -> None:
     """Run a sync cycle (one-shot or continuous)."""
     if daemon:
-        click.echo("Starting daemon mode...")  # pragma: no cover
+        click.echo("Starting daemon mode...")
     elif source:
-        click.echo(f"Syncing {source}...")  # pragma: no cover
+        click.echo(f"Syncing {source}...")
     else:
-        click.echo("Running full sync...")  # pragma: no cover
+        click.echo("Running full sync...")
 
 
 @cli.command()
@@ -117,7 +117,7 @@ def status() -> None:
 @click.argument("task_id")
 def block(task_id: str) -> None:
     """Open scheduling dialog for a task."""
-    click.echo(f"Opening scheduling dialog for {task_id}...")  # pragma: no cover
+    click.echo(f"Opening scheduling dialog for {task_id}...")
 
 
 @cli.command("config")
