@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import Optional
 
 from nstd.config import SchedulingConfig
 
@@ -63,11 +61,11 @@ def build_availability(
 def suggest_sessions(
     estimate_hours: float,
     hours_already_scheduled: float,
-    start_date: Optional[date],
-    due_date: Optional[date],
+    start_date: date | None,
+    due_date: date | None,
     availability: dict[date, dict],
     config: SchedulingConfig,
-    today: Optional[date] = None,
+    today: date | None = None,
 ) -> dict:
     """Suggest work sessions for a task based on the algorithm in §8.5.2.
 
@@ -141,11 +139,13 @@ def suggest_sessions(
             work_end,
         )
 
-        sessions.append({
-            "date": day,
-            "start_time": suggested_start,
-            "duration_hours": session_length,
-        })
+        sessions.append(
+            {
+                "date": day,
+                "start_time": suggested_start,
+                "duration_hours": session_length,
+            }
+        )
 
         remaining -= session_length
         avail_copy[day]["available_hours"] -= session_length
@@ -162,13 +162,13 @@ def suggest_sessions(
 
 def evaluate_nudge(
     state: str,
-    estimate_hours: Optional[float],
-    due_date: Optional[str],
+    estimate_hours: float | None,
+    due_date: str | None,
     future_block_hours: float,
     all_blocks_past: bool,
     has_any_blocks: bool,
-    today: Optional[date] = None,
-) -> Optional[str]:
+    today: date | None = None,
+) -> str | None:
     """Evaluate the scheduling nudge status for a task (§8.5.4).
 
     Args:

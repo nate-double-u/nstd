@@ -41,7 +41,7 @@ def writeback_jira_done(
     """
     # Find linked Jira tasks
     linked = get_linked_tasks(conn, github_task_id)
-    jira_links = [l for l in linked if l["task_id"].startswith("jira:")]
+    jira_links = [lnk for lnk in linked if lnk["task_id"].startswith("jira:")]
 
     if not jira_links:
         return {"success": True, "skipped": True}

@@ -30,8 +30,14 @@ def jira_config():
     )
 
 
-def _make_jira_issue(key="CNCFSD-100", summary="Test issue", status="In Progress",
-                     priority="Medium", due_date="2026-03-25", start_date=None):
+def _make_jira_issue(
+    key="CNCFSD-100",
+    summary="Test issue",
+    status="In Progress",
+    priority="Medium",
+    due_date="2026-03-25",
+    start_date=None,
+):
     """Helper to create a mock Jira issue object."""
     issue = MagicMock()
     issue.key = key
@@ -50,7 +56,7 @@ def _make_jira_issue(key="CNCFSD-100", summary="Test issue", status="In Progress
     fields.duedate = due_date
 
     # Start date custom field
-    setattr(fields, "customfield_10015", start_date)
+    fields.customfield_10015 = start_date
 
     issue.fields = fields
     return issue

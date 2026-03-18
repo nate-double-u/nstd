@@ -1,6 +1,6 @@
 """Tests for nstd.writeback.jira — written BEFORE implementation (TDD)."""
 
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,28 +14,46 @@ def db():
     create_schema(conn)
 
     # Create a GitHub task linked to a Jira task
-    upsert_task(conn, {
-        "id": "gh:cncf/staff:100",
-        "source": "github", "source_id": "100",
-        "source_url": "https://github.com/cncf/staff/issues/100",
-        "title": "Fix the thing", "body": "", "state": "closed",
-        "assignee": "nate-double-u",
-        "priority": None, "size": None, "estimate_hours": None,
-        "start_date": None, "due_date": None,
-        "created_at": "2026-03-01T00:00:00Z",
-        "updated_at": "2026-03-15T00:00:00Z",
-    })
-    upsert_task(conn, {
-        "id": "jira:CNCFSD-200",
-        "source": "jira", "source_id": "CNCFSD-200",
-        "source_url": "https://cncfservicedesk.atlassian.net/browse/CNCFSD-200",
-        "title": "Jira mirror", "body": "", "state": "open",
-        "assignee": "nate",
-        "priority": None, "size": None, "estimate_hours": None,
-        "start_date": None, "due_date": None,
-        "created_at": "2026-03-01T00:00:00Z",
-        "updated_at": "2026-03-15T00:00:00Z",
-    })
+    upsert_task(
+        conn,
+        {
+            "id": "gh:cncf/staff:100",
+            "source": "github",
+            "source_id": "100",
+            "source_url": "https://github.com/cncf/staff/issues/100",
+            "title": "Fix the thing",
+            "body": "",
+            "state": "closed",
+            "assignee": "nate-double-u",
+            "priority": None,
+            "size": None,
+            "estimate_hours": None,
+            "start_date": None,
+            "due_date": None,
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-15T00:00:00Z",
+        },
+    )
+    upsert_task(
+        conn,
+        {
+            "id": "jira:CNCFSD-200",
+            "source": "jira",
+            "source_id": "CNCFSD-200",
+            "source_url": "https://cncfservicedesk.atlassian.net/browse/CNCFSD-200",
+            "title": "Jira mirror",
+            "body": "",
+            "state": "open",
+            "assignee": "nate",
+            "priority": None,
+            "size": None,
+            "estimate_hours": None,
+            "start_date": None,
+            "due_date": None,
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-15T00:00:00Z",
+        },
+    )
     create_task_link(conn, "gh:cncf/staff:100", "jira:CNCFSD-200", "mirrors")
 
     yield conn
@@ -81,8 +99,11 @@ class TestJiraWriteback:
         ]
 
         result = writeback_jira_done(
-            db, "gh:cncf/staff:100", "fake-token",
-            "https://cncfservicedesk.atlassian.net", "nate@linuxfoundation.org",
+            db,
+            "gh:cncf/staff:100",
+            "fake-token",
+            "https://cncfservicedesk.atlassian.net",
+            "nate@linuxfoundation.org",
         )
 
         assert result["success"] is True
@@ -100,8 +121,11 @@ class TestJiraWriteback:
         ]
 
         result = writeback_jira_done(
-            db, "gh:cncf/staff:100", "fake-token",
-            "https://cncfservicedesk.atlassian.net", "nate@linuxfoundation.org",
+            db,
+            "gh:cncf/staff:100",
+            "fake-token",
+            "https://cncfservicedesk.atlassian.net",
+            "nate@linuxfoundation.org",
         )
 
         assert result["success"] is False
@@ -109,25 +133,37 @@ class TestJiraWriteback:
 
     def test_no_linked_jira_task_is_noop(self, db):
         """GitHub task with no Jira link results in no action, no error."""
-        from nstd.writeback.jira import writeback_jira_done
         from nstd.db import upsert_task
+        from nstd.writeback.jira import writeback_jira_done
 
         # Create an unlinked task
-        upsert_task(db, {
-            "id": "gh:cncf/staff:999",
-            "source": "github", "source_id": "999",
-            "source_url": "https://github.com/cncf/staff/issues/999",
-            "title": "Unlinked", "body": "", "state": "closed",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:999",
+                "source": "github",
+                "source_id": "999",
+                "source_url": "https://github.com/cncf/staff/issues/999",
+                "title": "Unlinked",
+                "body": "",
+                "state": "closed",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
         result = writeback_jira_done(
-            db, "gh:cncf/staff:999", "fake-token",
-            "https://cncfservicedesk.atlassian.net", "nate@linuxfoundation.org",
+            db,
+            "gh:cncf/staff:999",
+            "fake-token",
+            "https://cncfservicedesk.atlassian.net",
+            "nate@linuxfoundation.org",
         )
 
         assert result["success"] is True
@@ -143,8 +179,11 @@ class TestJiraWriteback:
         mock_client.transitions.side_effect = Exception("Jira API down")
 
         result = writeback_jira_done(
-            db, "gh:cncf/staff:100", "fake-token",
-            "https://cncfservicedesk.atlassian.net", "nate@linuxfoundation.org",
+            db,
+            "gh:cncf/staff:100",
+            "fake-token",
+            "https://cncfservicedesk.atlassian.net",
+            "nate@linuxfoundation.org",
         )
 
         assert result["success"] is False

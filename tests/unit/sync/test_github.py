@@ -1,7 +1,7 @@
 """Tests for nstd.sync.github — written BEFORE implementation (TDD)."""
 
 import textwrap
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -76,7 +76,7 @@ class TestJiraLinkExtraction:
         from nstd.sync.github import extract_jira_link
 
         body = "**Jira:** https://cncfservicedesk.atlassian.net/browse/PROJ-123"
-        url, key = extract_jira_link(body)
+        _url, key = extract_jira_link(body)
         assert key == "PROJ-123"
 
 
@@ -321,9 +321,7 @@ class TestGitHubSync:
         )
 
         assert stats["fetched"] >= 1
-        row = db.execute(
-            "SELECT * FROM tasks WHERE id = 'gh:cncf/staff:100'"
-        ).fetchone()
+        row = db.execute("SELECT * FROM tasks WHERE id = 'gh:cncf/staff:100'").fetchone()
         assert row is not None
         assert row["title"] == "Task from GitHub"
 
@@ -348,9 +346,7 @@ class TestGitHubSync:
 
         sync_github(db, github_config["user"], github_config["github"], token="ghp_fake")
 
-        row = db.execute(
-            "SELECT * FROM tasks WHERE id = 'gh:cncf/staff:200'"
-        ).fetchone()
+        row = db.execute("SELECT * FROM tasks WHERE id = 'gh:cncf/staff:200'").fetchone()
         assert row is None
 
     @patch("nstd.sync.github._fetch_issues_rest")
