@@ -353,3 +353,63 @@ def get_future_blocks_for_task(conn: sqlite3.Connection, task_id: str) -> list[d
         (task_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# --- Query helpers ---
+
+
+def query_tasks(
+    conn: sqlite3.Connection,
+    source_filter: str | None = None,
+    sort_by: str | None = None,
+) -> list[dict]:
+    """Query open tasks with optional filtering and sorting.
+
+    Args:
+        conn: Database connection.
+        source_filter: If set, only return tasks from this source.
+        sort_by: Column to sort by. Must be one of the allowed sort columns.
+
+    Returns:
+        List of task dicts.
+
+    Raises:
+        ValueError: If sort_by is not an allowed column.
+    """
+    allowed_sort_columns = {"due_date", "priority", "updated_at", "created_at", "title", "source"}
+
+    query = "SELECT * FROM tasks WHERE state = 'open'"
+    params: list = []
+
+    if source_filter:
+        query += " AND source = ?"
+        params.append(source_filter)
+
+    if sort_by == "due_date":
+        query += " ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC"
+    elif sort_by:
+        if sort_by not in allowed_sort_columns:
+            msg = f"Invalid sort column: {sort_by}"
+            raise ValueError(msg)
+        query += f" ORDER BY {sort_by}"
+    else:
+        query += " ORDER BY updated_at DESC"
+
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_recent_sync_logs(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
+    """Retrieve recent sync log entries, most recent first.
+
+    Args:
+        conn: Database connection.
+        limit: Maximum number of entries to return (default 20).
+
+    Returns:
+        List of sync log dicts.
+    """
+    rows = conn.execute(
+        "SELECT * FROM sync_log ORDER BY started_at DESC, id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
