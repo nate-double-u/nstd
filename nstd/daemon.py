@@ -121,7 +121,7 @@ def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     """
     from nstd.sync.asana import sync_asana
 
-    token = get_credential("nstd-asana", "default")
+    token = get_credential("nstd-asana", config.user.github_username)
     if not token:
         raise RuntimeError("Asana token not found in Keychain")
     return sync_asana(conn, config.asana, token)

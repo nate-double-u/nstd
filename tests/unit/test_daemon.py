@@ -485,6 +485,7 @@ class TestSyncFunctionIntegration:
 
         config = MagicMock()
         result = _sync_asana(conn, config)
+        mock_cred.assert_called_once_with("nstd-asana", config.user.github_username)
         mock_sync.assert_called_once_with(conn, config.asana, "fake-token")
         assert result["fetched"] == 2
 
@@ -496,5 +497,5 @@ class TestSyncFunctionIntegration:
         config = MagicMock()
         service = MagicMock()
 
-        result = run_calendar_poll(conn, config, service)
+        run_calendar_poll(conn, config, service)
         mock_poll.assert_called_once()
