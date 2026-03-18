@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 def get_connection(db_path: str = ":memory:") -> sqlite3.Connection:
@@ -106,10 +105,11 @@ def create_schema(conn: sqlite3.Connection) -> None:
 
 def _now_iso() -> str:
     """Current UTC time as ISO 8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # --- Task operations ---
+
 
 def upsert_task(conn: sqlite3.Connection, task: dict) -> None:
     """Insert or update a task record.
@@ -150,15 +150,13 @@ def upsert_task(conn: sqlite3.Connection, task: dict) -> None:
     conn.commit()
 
 
-def get_task(conn: sqlite3.Connection, task_id: str) -> Optional[dict]:
+def get_task(conn: sqlite3.Connection, task_id: str) -> dict | None:
     """Retrieve a single task by ID.
 
     Returns:
         Task as dict, or None if not found.
     """
-    row = conn.execute(
-        "SELECT * FROM tasks WHERE id = ?", (task_id,)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     return dict(row) if row else None
 
 
@@ -180,6 +178,7 @@ def get_tasks_by_source(conn: sqlite3.Connection, source: str) -> list[dict]:
 
 
 # --- Task link operations ---
+
 
 def create_task_link(
     conn: sqlite3.Connection,
@@ -217,9 +216,8 @@ def get_linked_tasks(conn: sqlite3.Connection, task_id: str) -> list[dict]:
 
 # --- Sync log operations ---
 
-def start_sync_log(
-    conn: sqlite3.Connection, source: Optional[str] = None
-) -> int:
+
+def start_sync_log(conn: sqlite3.Connection, source: str | None = None) -> int:
     """Start a new sync log entry.
 
     Returns:
@@ -271,14 +269,15 @@ def error_sync_log(
 
 # --- Conflict operations ---
 
+
 def record_conflict(
     conn: sqlite3.Connection,
     task_id: str,
     field: str,
-    value_github: Optional[str],
-    value_other: Optional[str],
+    value_github: str | None,
+    value_other: str | None,
     other_source: str,
-    ai_recommendation: Optional[str] = None,
+    ai_recommendation: str | None = None,
 ) -> int:
     """Record a field conflict between GitHub and another source.
 
@@ -292,8 +291,7 @@ def record_conflict(
              ai_recommendation, detected_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (task_id, field, value_github, value_other, other_source,
-         ai_recommendation, _now_iso()),
+        (task_id, field, value_github, value_other, other_source, ai_recommendation, _now_iso()),
     )
     conn.commit()
     return cursor.lastrowid
@@ -308,6 +306,7 @@ def get_unresolved_conflicts(conn: sqlite3.Connection) -> list[dict]:
 
 
 # --- Calendar block operations ---
+
 
 def insert_calendar_block(
     conn: sqlite3.Connection,
@@ -343,9 +342,7 @@ def get_blocks_for_task(conn: sqlite3.Connection, task_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_future_blocks_for_task(
-    conn: sqlite3.Connection, task_id: str
-) -> list[dict]:
+def get_future_blocks_for_task(conn: sqlite3.Connection, task_id: str) -> list[dict]:
     """Retrieve only future (non-past) calendar blocks for a task."""
     rows = conn.execute(
         """

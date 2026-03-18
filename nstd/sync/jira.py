@@ -96,8 +96,14 @@ def sync_jira(
         )
 
         fields = [
-            "summary", "description", "status", "priority", "assignee",
-            "created", "updated", "duedate",
+            "summary",
+            "description",
+            "status",
+            "priority",
+            "assignee",
+            "created",
+            "updated",
+            "duedate",
         ]
         if config.start_date_field:
             fields.append(config.start_date_field)

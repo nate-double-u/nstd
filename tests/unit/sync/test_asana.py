@@ -1,6 +1,6 @@
 """Tests for nstd.sync.asana — written BEFORE implementation (TDD)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -28,9 +28,14 @@ def asana_config():
     )
 
 
-def _make_asana_task(gid="1200000000001", name="Asana task", completed=False,
-                     due_on="2026-03-25", start_on="2026-03-18",
-                     assignee_gid="me"):
+def _make_asana_task(
+    gid="1200000000001",
+    name="Asana task",
+    completed=False,
+    due_on="2026-03-25",
+    start_on="2026-03-18",
+    assignee_gid="me",
+):
     """Helper to create an Asana task dict."""
     return {
         "gid": gid,
@@ -125,16 +130,14 @@ class TestAsanaSync:
         mock_assigned.return_value = [shared_task]
         mock_project.return_value = [shared_task]
 
-        stats = sync_asana(db, asana_config, token="fake-token")
+        sync_asana(db, asana_config, token="fake-token")
 
         rows = db.execute("SELECT * FROM tasks WHERE id = 'asana:3001'").fetchall()
         assert len(rows) == 1
 
     @patch("nstd.sync.asana._fetch_assigned_tasks")
     @patch("nstd.sync.asana._fetch_project_tasks")
-    def test_handles_api_error_gracefully(
-        self, mock_project, mock_assigned, db, asana_config
-    ):
+    def test_handles_api_error_gracefully(self, mock_project, mock_assigned, db, asana_config):
         """API errors are caught and returned in stats."""
         from nstd.sync.asana import sync_asana
 

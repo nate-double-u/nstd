@@ -13,9 +13,7 @@ class GitHubIssueFactory(factory.Factory):
     title = factory.Faker("sentence", nb_words=5)
     body = factory.Faker("paragraph")
     state = "open"
-    html_url = factory.LazyAttribute(
-        lambda o: f"https://github.com/cncf/staff/issues/{o.number}"
-    )
+    html_url = factory.LazyAttribute(lambda o: f"https://github.com/cncf/staff/issues/{o.number}")
     assignees = factory.LazyFunction(lambda: [{"login": "nate-double-u"}])
     labels = factory.LazyFunction(lambda: [])
     created_at = "2026-03-01T00:00:00Z"
@@ -55,9 +53,7 @@ class AsanaTaskFactory(factory.Factory):
     completed = False
     due_on = "2026-03-25"
     start_on = "2026-03-18"
-    permalink_url = factory.LazyAttribute(
-        lambda o: f"https://app.asana.com/0/0/{o.gid}"
-    )
+    permalink_url = factory.LazyAttribute(lambda o: f"https://app.asana.com/0/0/{o.gid}")
     assignee = factory.LazyFunction(lambda: {"gid": "me"})
     memberships = factory.LazyFunction(lambda: [])
     custom_fields = factory.LazyFunction(lambda: [])
@@ -74,4 +70,4 @@ class CalendarEventFactory(factory.Factory):
     start = factory.LazyFunction(lambda: {"dateTime": "2026-03-20T09:00:00-07:00"})
     end = factory.LazyFunction(lambda: {"dateTime": "2026-03-20T11:00:00-07:00"})
     description = ""
-    colorId = None
+    colorId = None  # noqa: N815 — matches Google Calendar API field name

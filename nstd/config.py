@@ -6,7 +6,6 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import keyring
 
@@ -16,9 +15,7 @@ class ConfigurationError(Exception):
 
 
 # Keys whose presence in config.toml indicates a leaked secret
-_SECRET_KEY_PATTERN = re.compile(
-    r"^(token|secret|password|api_key)$", re.IGNORECASE
-)
+_SECRET_KEY_PATTERN = re.compile(r"^(token|secret|password|api_key)$", re.IGNORECASE)
 
 
 @dataclass
@@ -109,8 +106,16 @@ class NstdConfig:
 
 
 _REQUIRED_SECTIONS = [
-    "user", "github", "jira", "asana", "google_calendar",
-    "sync", "scheduling", "ai", "conflict_resolution", "tui",
+    "user",
+    "github",
+    "jira",
+    "asana",
+    "google_calendar",
+    "sync",
+    "scheduling",
+    "ai",
+    "conflict_resolution",
+    "tui",
 ]
 
 
@@ -128,7 +133,7 @@ def _check_for_secrets(data: dict, path: str = "") -> None:
             _check_for_secrets(value, current_path)
 
 
-def load_config(config_dir: Optional[Path] = None) -> NstdConfig:
+def load_config(config_dir: Path | None = None) -> NstdConfig:
     """Load and validate nstd configuration from a TOML file.
 
     Args:
@@ -146,9 +151,7 @@ def load_config(config_dir: Optional[Path] = None) -> NstdConfig:
 
     config_path = config_dir / "config.toml"
     if not config_path.exists():
-        raise ConfigurationError(
-            f"Configuration file not found: {config_path}"
-        )
+        raise ConfigurationError(f"Configuration file not found: {config_path}")
 
     with open(config_path, "rb") as f:
         raw = tomllib.load(f)
@@ -159,9 +162,7 @@ def load_config(config_dir: Optional[Path] = None) -> NstdConfig:
     # Validate required sections
     for section in _REQUIRED_SECTIONS:
         if section not in raw:
-            raise ConfigurationError(
-                f"Missing required configuration section: [{section}]"
-            )
+            raise ConfigurationError(f"Missing required configuration section: [{section}]")
 
     try:
         return NstdConfig(
@@ -180,7 +181,7 @@ def load_config(config_dir: Optional[Path] = None) -> NstdConfig:
         raise ConfigurationError(f"Invalid configuration: {e}") from e
 
 
-def get_credential(service: str, account: str) -> Optional[str]:
+def get_credential(service: str, account: str) -> str | None:
     """Retrieve a credential from macOS Keychain.
 
     Args:

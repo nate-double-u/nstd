@@ -1,8 +1,5 @@
 """Tests for nstd.db — written BEFORE implementation (TDD)."""
 
-import sqlite3
-from datetime import datetime
-
 import pytest
 
 
@@ -22,13 +19,15 @@ class TestSchema:
 
     def test_creates_all_tables(self, db):
         """Schema creates all required tables."""
-        cursor = db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
+        cursor = db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         tables = {row[0] for row in cursor.fetchall()}
         expected = {
-            "tasks", "calendar_blocks", "task_links",
-            "sync_log", "conflicts", "estimates",
+            "tasks",
+            "calendar_blocks",
+            "task_links",
+            "sync_log",
+            "conflicts",
+            "estimates",
         }
         assert expected.issubset(tables)
 
@@ -37,9 +36,7 @@ class TestSchema:
         from nstd.db import create_schema
 
         create_schema(db)  # second call
-        cursor = db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        cursor = db.execute("SELECT name FROM sqlite_master WHERE type='table'")
         assert len(cursor.fetchall()) >= 6
 
 
@@ -50,28 +47,31 @@ class TestTaskUpsert:
         """Inserting a new task creates a record."""
         from nstd.db import upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:123",
-            "source": "github",
-            "source_id": "123",
-            "source_url": "https://github.com/cncf/staff/issues/123",
-            "title": "Fix the thing",
-            "body": "Detailed description",
-            "state": "open",
-            "assignee": "nate-double-u",
-            "priority": "high",
-            "size": "M",
-            "estimate_hours": None,
-            "start_date": "2026-03-18",
-            "due_date": "2026-03-25",
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:123",
+                "source": "github",
+                "source_id": "123",
+                "source_url": "https://github.com/cncf/staff/issues/123",
+                "title": "Fix the thing",
+                "body": "Detailed description",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": "high",
+                "size": "M",
+                "estimate_hours": None,
+                "start_date": "2026-03-18",
+                "due_date": "2026-03-25",
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
         row = db.execute("SELECT * FROM tasks WHERE id = ?", ("gh:cncf/staff:123",)).fetchone()
         assert row is not None
         assert row[0] == "gh:cncf/staff:123"  # id
-        assert row[4] == "Fix the thing"      # title
+        assert row[4] == "Fix the thing"  # title
 
     def test_update_existing_task(self, db):
         """Upserting an existing task updates it."""
@@ -100,8 +100,9 @@ class TestTaskUpsert:
         task_data["state"] = "closed"
         upsert_task(db, task_data)
 
-        row = db.execute("SELECT title, state FROM tasks WHERE id = ?",
-                         ("gh:cncf/staff:123",)).fetchone()
+        row = db.execute(
+            "SELECT title, state FROM tasks WHERE id = ?", ("gh:cncf/staff:123",)
+        ).fetchone()
         assert row[0] == "Fix the thing (updated)"
         assert row[1] == "closed"
 
@@ -109,26 +110,30 @@ class TestTaskUpsert:
         """Upsert sets synced_at timestamp."""
         from nstd.db import upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:999",
-            "source": "github",
-            "source_id": "999",
-            "source_url": "https://github.com/cncf/staff/issues/999",
-            "title": "Test task",
-            "body": "",
-            "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None,
-            "size": None,
-            "estimate_hours": None,
-            "start_date": None,
-            "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:999",
+                "source": "github",
+                "source_id": "999",
+                "source_url": "https://github.com/cncf/staff/issues/999",
+                "title": "Test task",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
-        row = db.execute("SELECT synced_at FROM tasks WHERE id = ?",
-                         ("gh:cncf/staff:999",)).fetchone()
+        row = db.execute(
+            "SELECT synced_at FROM tasks WHERE id = ?", ("gh:cncf/staff:999",)
+        ).fetchone()
         assert row[0] is not None
 
 
@@ -139,23 +144,26 @@ class TestTaskQueries:
         """Retrieve a single task by ID."""
         from nstd.db import get_task, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:100",
-            "source": "github",
-            "source_id": "100",
-            "source_url": "https://github.com/cncf/staff/issues/100",
-            "title": "Task 100",
-            "body": "",
-            "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None,
-            "size": None,
-            "estimate_hours": None,
-            "start_date": None,
-            "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:100",
+                "source": "github",
+                "source_id": "100",
+                "source_url": "https://github.com/cncf/staff/issues/100",
+                "title": "Task 100",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
         task = get_task(db, "gh:cncf/staff:100")
         assert task is not None
@@ -172,23 +180,26 @@ class TestTaskQueries:
         from nstd.db import get_open_tasks, upsert_task
 
         for i, state in [(1, "open"), (2, "open"), (3, "closed")]:
-            upsert_task(db, {
-                "id": f"gh:cncf/staff:{i}",
-                "source": "github",
-                "source_id": str(i),
-                "source_url": f"https://github.com/cncf/staff/issues/{i}",
-                "title": f"Task {i}",
-                "body": "",
-                "state": state,
-                "assignee": "nate-double-u",
-                "priority": None,
-                "size": None,
-                "estimate_hours": None,
-                "start_date": None,
-                "due_date": None,
-                "created_at": "2026-03-01T00:00:00Z",
-                "updated_at": "2026-03-15T00:00:00Z",
-            })
+            upsert_task(
+                db,
+                {
+                    "id": f"gh:cncf/staff:{i}",
+                    "source": "github",
+                    "source_id": str(i),
+                    "source_url": f"https://github.com/cncf/staff/issues/{i}",
+                    "title": f"Task {i}",
+                    "body": "",
+                    "state": state,
+                    "assignee": "nate-double-u",
+                    "priority": None,
+                    "size": None,
+                    "estimate_hours": None,
+                    "start_date": None,
+                    "due_date": None,
+                    "created_at": "2026-03-01T00:00:00Z",
+                    "updated_at": "2026-03-15T00:00:00Z",
+                },
+            )
 
         open_tasks = get_open_tasks(db)
         assert len(open_tasks) == 2
@@ -197,34 +208,46 @@ class TestTaskQueries:
         """Retrieve tasks filtered by source system."""
         from nstd.db import get_tasks_by_source, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github",
-            "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "GH Task",
-            "body": "",
-            "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
-        upsert_task(db, {
-            "id": "jira:CNCFSD-100",
-            "source": "jira",
-            "source_id": "CNCFSD-100",
-            "source_url": "https://cncfservicedesk.atlassian.net/browse/CNCFSD-100",
-            "title": "Jira Task",
-            "body": "",
-            "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "GH Task",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
+        upsert_task(
+            db,
+            {
+                "id": "jira:CNCFSD-100",
+                "source": "jira",
+                "source_id": "CNCFSD-100",
+                "source_url": "https://cncfservicedesk.atlassian.net/browse/CNCFSD-100",
+                "title": "Jira Task",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
         gh_tasks = get_tasks_by_source(db, "github")
         assert len(gh_tasks) == 1
@@ -239,18 +262,26 @@ class TestTaskLinks:
         from nstd.db import create_task_link, upsert_task
 
         for task_id in ["gh:cncf/staff:1", "jira:CNCFSD-100"]:
-            upsert_task(db, {
-                "id": task_id,
-                "source": "github" if "gh:" in task_id else "jira",
-                "source_id": task_id.split(":")[-1],
-                "source_url": f"https://example.com/{task_id}",
-                "title": f"Task {task_id}",
-                "body": "", "state": "open", "assignee": "nate-double-u",
-                "priority": None, "size": None, "estimate_hours": None,
-                "start_date": None, "due_date": None,
-                "created_at": "2026-03-01T00:00:00Z",
-                "updated_at": "2026-03-15T00:00:00Z",
-            })
+            upsert_task(
+                db,
+                {
+                    "id": task_id,
+                    "source": "github" if "gh:" in task_id else "jira",
+                    "source_id": task_id.split(":")[-1],
+                    "source_url": f"https://example.com/{task_id}",
+                    "title": f"Task {task_id}",
+                    "body": "",
+                    "state": "open",
+                    "assignee": "nate-double-u",
+                    "priority": None,
+                    "size": None,
+                    "estimate_hours": None,
+                    "start_date": None,
+                    "due_date": None,
+                    "created_at": "2026-03-01T00:00:00Z",
+                    "updated_at": "2026-03-15T00:00:00Z",
+                },
+            )
 
         create_task_link(db, "gh:cncf/staff:1", "jira:CNCFSD-100", "mirrors")
 
@@ -262,18 +293,26 @@ class TestTaskLinks:
         from nstd.db import create_task_link, get_linked_tasks, upsert_task
 
         for task_id in ["gh:cncf/staff:1", "jira:CNCFSD-100"]:
-            upsert_task(db, {
-                "id": task_id,
-                "source": "github" if "gh:" in task_id else "jira",
-                "source_id": task_id.split(":")[-1],
-                "source_url": f"https://example.com/{task_id}",
-                "title": f"Task {task_id}",
-                "body": "", "state": "open", "assignee": "nate-double-u",
-                "priority": None, "size": None, "estimate_hours": None,
-                "start_date": None, "due_date": None,
-                "created_at": "2026-03-01T00:00:00Z",
-                "updated_at": "2026-03-15T00:00:00Z",
-            })
+            upsert_task(
+                db,
+                {
+                    "id": task_id,
+                    "source": "github" if "gh:" in task_id else "jira",
+                    "source_id": task_id.split(":")[-1],
+                    "source_url": f"https://example.com/{task_id}",
+                    "title": f"Task {task_id}",
+                    "body": "",
+                    "state": "open",
+                    "assignee": "nate-double-u",
+                    "priority": None,
+                    "size": None,
+                    "estimate_hours": None,
+                    "start_date": None,
+                    "due_date": None,
+                    "created_at": "2026-03-01T00:00:00Z",
+                    "updated_at": "2026-03-15T00:00:00Z",
+                },
+            )
 
         create_task_link(db, "gh:cncf/staff:1", "jira:CNCFSD-100", "mirrors")
 
@@ -286,18 +325,26 @@ class TestTaskLinks:
         from nstd.db import create_task_link, upsert_task
 
         for task_id in ["gh:cncf/staff:1", "jira:CNCFSD-100"]:
-            upsert_task(db, {
-                "id": task_id,
-                "source": "github" if "gh:" in task_id else "jira",
-                "source_id": task_id.split(":")[-1],
-                "source_url": f"https://example.com/{task_id}",
-                "title": f"Task {task_id}",
-                "body": "", "state": "open", "assignee": "nate-double-u",
-                "priority": None, "size": None, "estimate_hours": None,
-                "start_date": None, "due_date": None,
-                "created_at": "2026-03-01T00:00:00Z",
-                "updated_at": "2026-03-15T00:00:00Z",
-            })
+            upsert_task(
+                db,
+                {
+                    "id": task_id,
+                    "source": "github" if "gh:" in task_id else "jira",
+                    "source_id": task_id.split(":")[-1],
+                    "source_url": f"https://example.com/{task_id}",
+                    "title": f"Task {task_id}",
+                    "body": "",
+                    "state": "open",
+                    "assignee": "nate-double-u",
+                    "priority": None,
+                    "size": None,
+                    "estimate_hours": None,
+                    "start_date": None,
+                    "due_date": None,
+                    "created_at": "2026-03-01T00:00:00Z",
+                    "updated_at": "2026-03-15T00:00:00Z",
+                },
+            )
 
         create_task_link(db, "gh:cncf/staff:1", "jira:CNCFSD-100", "mirrors")
         create_task_link(db, "gh:cncf/staff:1", "jira:CNCFSD-100", "mirrors")
@@ -316,8 +363,7 @@ class TestSyncLog:
         log_id = start_sync_log(db, source="github")
         assert log_id is not None
 
-        row = db.execute("SELECT status, source FROM sync_log WHERE id = ?",
-                         (log_id,)).fetchone()
+        row = db.execute("SELECT status, source FROM sync_log WHERE id = ?", (log_id,)).fetchone()
         assert row[0] == "running"
         assert row[1] == "github"
 
@@ -330,7 +376,7 @@ class TestSyncLog:
 
         row = db.execute(
             "SELECT status, records_fetched, records_updated, finished_at FROM sync_log WHERE id = ?",
-            (log_id,)
+            (log_id,),
         ).fetchone()
         assert row[0] == "success"
         assert row[1] == 10
@@ -344,8 +390,7 @@ class TestSyncLog:
         log_id = start_sync_log(db)
         error_sync_log(db, log_id, errors=["API timeout", "Rate limited"])
 
-        row = db.execute("SELECT status, errors FROM sync_log WHERE id = ?",
-                         (log_id,)).fetchone()
+        row = db.execute("SELECT status, errors FROM sync_log WHERE id = ?", (log_id,)).fetchone()
         assert row[0] == "error"
         assert "API timeout" in row[1]
 
@@ -357,19 +402,29 @@ class TestConflicts:
         """Record a field conflict."""
         from nstd.db import record_conflict, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github", "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "Task 1", "body": "", "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "Task 1",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
-        record_conflict(db,
+        record_conflict(
+            db,
             task_id="gh:cncf/staff:1",
             field="priority",
             value_github="high",
@@ -384,17 +439,26 @@ class TestConflicts:
         """Retrieve only unresolved conflicts."""
         from nstd.db import get_unresolved_conflicts, record_conflict, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github", "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "Task 1", "body": "", "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "Task 1",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
         record_conflict(db, "gh:cncf/staff:1", "priority", "high", "low", "jira")
         record_conflict(db, "gh:cncf/staff:1", "due_date", "2026-03-25", "2026-03-30", "jira")
@@ -418,19 +482,29 @@ class TestCalendarBlocks:
         """Insert a calendar block for a task."""
         from nstd.db import insert_calendar_block, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github", "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "Task 1", "body": "", "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "Task 1",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
-        block_id = insert_calendar_block(db,
+        block_id = insert_calendar_block(
+            db,
             task_id="gh:cncf/staff:1",
             gcal_event_id="event_abc123",
             start_dt="2026-03-20T09:00:00-07:00",
@@ -439,30 +513,40 @@ class TestCalendarBlocks:
         )
 
         assert block_id is not None
-        row = db.execute("SELECT * FROM calendar_blocks WHERE id = ?",
-                         (block_id,)).fetchone()
+        row = db.execute("SELECT * FROM calendar_blocks WHERE id = ?", (block_id,)).fetchone()
         assert row is not None
 
     def test_get_blocks_for_task(self, db):
         """Retrieve calendar blocks for a specific task."""
         from nstd.db import get_blocks_for_task, insert_calendar_block, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github", "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "Task 1", "body": "", "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "Task 1",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
-        insert_calendar_block(db, "gh:cncf/staff:1", "evt1",
-                              "2026-03-20T09:00:00", "2026-03-20T11:00:00", 2.0)
-        insert_calendar_block(db, "gh:cncf/staff:1", "evt2",
-                              "2026-03-21T09:00:00", "2026-03-21T11:00:00", 2.0)
+        insert_calendar_block(
+            db, "gh:cncf/staff:1", "evt1", "2026-03-20T09:00:00", "2026-03-20T11:00:00", 2.0
+        )
+        insert_calendar_block(
+            db, "gh:cncf/staff:1", "evt2", "2026-03-21T09:00:00", "2026-03-21T11:00:00", 2.0
+        )
 
         blocks = get_blocks_for_task(db, "gh:cncf/staff:1")
         assert len(blocks) == 2
@@ -471,25 +555,36 @@ class TestCalendarBlocks:
         """Retrieve only future (non-past) blocks for a task."""
         from nstd.db import get_future_blocks_for_task, insert_calendar_block, upsert_task
 
-        upsert_task(db, {
-            "id": "gh:cncf/staff:1",
-            "source": "github", "source_id": "1",
-            "source_url": "https://github.com/cncf/staff/issues/1",
-            "title": "Task 1", "body": "", "state": "open",
-            "assignee": "nate-double-u",
-            "priority": None, "size": None, "estimate_hours": None,
-            "start_date": None, "due_date": None,
-            "created_at": "2026-03-01T00:00:00Z",
-            "updated_at": "2026-03-15T00:00:00Z",
-        })
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/cncf/staff/issues/1",
+                "title": "Task 1",
+                "body": "",
+                "state": "open",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
 
-        insert_calendar_block(db, "gh:cncf/staff:1", "evt1",
-                              "2026-03-20T09:00:00", "2026-03-20T11:00:00", 2.0)
+        insert_calendar_block(
+            db, "gh:cncf/staff:1", "evt1", "2026-03-20T09:00:00", "2026-03-20T11:00:00", 2.0
+        )
         # Mark one as past
         db.execute("UPDATE calendar_blocks SET is_past = 1 WHERE gcal_event_id = 'evt1'")
 
-        insert_calendar_block(db, "gh:cncf/staff:1", "evt2",
-                              "2026-03-21T09:00:00", "2026-03-21T11:00:00", 2.0)
+        insert_calendar_block(
+            db, "gh:cncf/staff:1", "evt2", "2026-03-21T09:00:00", "2026-03-21T11:00:00", 2.0
+        )
         db.commit()
 
         future = get_future_blocks_for_task(db, "gh:cncf/staff:1")

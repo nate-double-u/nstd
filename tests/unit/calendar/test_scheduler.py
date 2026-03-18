@@ -50,8 +50,10 @@ class TestAvailabilityModel:
         avail = build_availability(
             days=[day],
             existing_nstd_blocks=[
-                {"start": datetime(2026, 3, 18, 9, 0),
-                 "end": datetime(2026, 3, 18, 11, 0)},  # 2h block
+                {
+                    "start": datetime(2026, 3, 18, 9, 0),
+                    "end": datetime(2026, 3, 18, 11, 0),
+                },  # 2h block
             ],
             observed_events=[],
             config=default_scheduling_config,
@@ -68,8 +70,10 @@ class TestAvailabilityModel:
             days=[day],
             existing_nstd_blocks=[],
             observed_events=[
-                {"start": datetime(2026, 3, 18, 13, 0),
-                 "end": datetime(2026, 3, 18, 14, 30)},  # 1.5h meeting
+                {
+                    "start": datetime(2026, 3, 18, 13, 0),
+                    "end": datetime(2026, 3, 18, 14, 30),
+                },  # 1.5h meeting
             ],
             config=default_scheduling_config,
         )
@@ -85,8 +89,10 @@ class TestAvailabilityModel:
             days=[day],
             existing_nstd_blocks=[],
             observed_events=[
-                {"start": datetime(2026, 3, 18, 15, 0),
-                 "end": datetime(2026, 3, 18, 16, 0)},  # 3-4pm meeting
+                {
+                    "start": datetime(2026, 3, 18, 15, 0),
+                    "end": datetime(2026, 3, 18, 16, 0),
+                },  # 3-4pm meeting
             ],
             config=default_scheduling_config,
         )
@@ -94,8 +100,7 @@ class TestAvailabilityModel:
         # The 3-4pm slot should be marked as occupied
         slots = avail[day]["occupied_slots"]
         assert any(
-            s["start"] == datetime(2026, 3, 18, 15, 0) and
-            s["end"] == datetime(2026, 3, 18, 16, 0)
+            s["start"] == datetime(2026, 3, 18, 15, 0) and s["end"] == datetime(2026, 3, 18, 16, 0)
             for s in slots
         )
 
@@ -123,8 +128,10 @@ class TestAvailabilityModel:
             days=[day],
             existing_nstd_blocks=[],
             observed_events=[
-                {"start": datetime(2026, 3, 18, 9, 0),
-                 "end": datetime(2026, 3, 18, 17, 0)},  # 8h all-day meeting
+                {
+                    "start": datetime(2026, 3, 18, 9, 0),
+                    "end": datetime(2026, 3, 18, 17, 0),
+                },  # 8h all-day meeting
             ],
             config=default_scheduling_config,
         )
@@ -136,7 +143,7 @@ class TestSessionSuggestion:
     """Test session suggestion algorithm (§8.5.2)."""
 
     def test_basic_suggestion_distributes_across_days(self, default_scheduling_config):
-        """6h estimate, 2h sessions, 3 available days → 3 × 2h sessions."""
+        """6h estimate, 2h sessions, 3 available days -> 3 x 2h sessions."""
         from nstd.calendar.scheduler import suggest_sessions
 
         result = suggest_sessions(
@@ -230,7 +237,9 @@ class TestSessionSuggestion:
         )
 
         assert result["warning"] is not None
-        assert "not enough time" in result["warning"].lower() or "tight" in result["warning"].lower()
+        assert (
+            "not enough time" in result["warning"].lower() or "tight" in result["warning"].lower()
+        )
 
     def test_null_start_date_defaults_to_today(self, default_scheduling_config):
         """When start_date is None, defaults to today."""
@@ -289,8 +298,10 @@ class TestSessionSuggestion:
                 day: {
                     "available_hours": 6.0,
                     "occupied_slots": [
-                        {"start": datetime(2026, 3, 18, 9, 0),
-                         "end": datetime(2026, 3, 18, 11, 0)},  # 9-11am occupied
+                        {
+                            "start": datetime(2026, 3, 18, 9, 0),
+                            "end": datetime(2026, 3, 18, 11, 0),
+                        },  # 9-11am occupied
                     ],
                 },
             },
@@ -451,8 +462,10 @@ class TestSlotFinding:
                 day: {
                     "available_hours": 6.0,
                     "occupied_slots": [
-                        {"start": datetime(2026, 3, 18, 11, 0),
-                         "end": datetime(2026, 3, 18, 12, 0)},
+                        {
+                            "start": datetime(2026, 3, 18, 11, 0),
+                            "end": datetime(2026, 3, 18, 12, 0),
+                        },
                     ],
                 },
             },
@@ -476,10 +489,11 @@ class TestSlotFinding:
                 day: {
                     "available_hours": 5.0,
                     "occupied_slots": [
-                        {"start": datetime(2026, 3, 18, 9, 0),
-                         "end": datetime(2026, 3, 18, 10, 0)},
-                        {"start": datetime(2026, 3, 18, 12, 0),
-                         "end": datetime(2026, 3, 18, 14, 0)},
+                        {"start": datetime(2026, 3, 18, 9, 0), "end": datetime(2026, 3, 18, 10, 0)},
+                        {
+                            "start": datetime(2026, 3, 18, 12, 0),
+                            "end": datetime(2026, 3, 18, 14, 0),
+                        },
                     ],
                 },
             },
@@ -504,8 +518,7 @@ class TestSlotFinding:
                 day: {
                     "available_hours": 2.0,
                     "occupied_slots": [
-                        {"start": datetime(2026, 3, 18, 9, 0),
-                         "end": datetime(2026, 3, 18, 17, 0)},
+                        {"start": datetime(2026, 3, 18, 9, 0), "end": datetime(2026, 3, 18, 17, 0)},
                     ],
                 },
             },

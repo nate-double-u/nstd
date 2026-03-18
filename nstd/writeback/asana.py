@@ -36,7 +36,7 @@ def writeback_asana_done(
     """
     # Find linked Asana tasks
     linked = get_linked_tasks(conn, github_task_id)
-    asana_links = [l for l in linked if l["task_id"].startswith("asana:")]
+    asana_links = [lnk for lnk in linked if lnk["task_id"].startswith("asana:")]
 
     if not asana_links:
         return {"success": True, "skipped": True}

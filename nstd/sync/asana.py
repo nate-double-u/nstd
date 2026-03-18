@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from typing import Any
 
 from nstd.config import AsanaConfig
 from nstd.db import upsert_task
@@ -12,8 +11,7 @@ from nstd.db import upsert_task
 logger = logging.getLogger(__name__)
 
 _OPT_FIELDS = (
-    "name,notes,due_on,start_on,completed,permalink_url,"
-    "assignee,memberships,custom_fields"
+    "name,notes,due_on,start_on,completed,permalink_url,assignee,memberships,custom_fields"
 )
 
 
@@ -66,12 +64,16 @@ def _fetch_assigned_tasks(token: str, workspace_gid: str) -> list[dict]:  # prag
     client = asana.Client.access_token(token)
     client.headers = {"asana-enable": "new_memberships"}
 
-    tasks = list(client.tasks.get_tasks({
-        "assignee": "me",
-        "workspace": workspace_gid,
-        "completed_since": "now",
-        "opt_fields": _OPT_FIELDS,
-    }))
+    tasks = list(
+        client.tasks.get_tasks(
+            {
+                "assignee": "me",
+                "workspace": workspace_gid,
+                "completed_since": "now",
+                "opt_fields": _OPT_FIELDS,
+            }
+        )
+    )
     return tasks
 
 
@@ -90,10 +92,15 @@ def _fetch_project_tasks(token: str, project_gid: str) -> list[dict]:  # pragma:
     client = asana.Client.access_token(token)
     client.headers = {"asana-enable": "new_memberships"}
 
-    tasks = list(client.tasks.get_tasks_for_project(project_gid, {
-        "completed_since": "now",
-        "opt_fields": _OPT_FIELDS,
-    }))
+    tasks = list(
+        client.tasks.get_tasks_for_project(
+            project_gid,
+            {
+                "completed_since": "now",
+                "opt_fields": _OPT_FIELDS,
+            },
+        )
+    )
     return tasks
 
 

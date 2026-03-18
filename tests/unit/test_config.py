@@ -1,8 +1,6 @@
 """Tests for nstd.config — written BEFORE implementation (TDD)."""
 
-import os
 import textwrap
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -16,7 +14,8 @@ class TestConfigLoading:
         from nstd.config import load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -66,7 +65,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         cfg = load_config(config_dir=tmp_path)
         assert cfg.user.github_username == "nate-double-u"
@@ -86,7 +86,8 @@ class TestConfigLoading:
         from nstd.config import ConfigurationError, load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -137,7 +138,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         with pytest.raises(ConfigurationError, match="secret"):
             load_config(config_dir=tmp_path)
@@ -147,7 +149,8 @@ class TestConfigLoading:
         from nstd.config import ConfigurationError, load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -198,7 +201,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         with pytest.raises(ConfigurationError, match="secret"):
             load_config(config_dir=tmp_path)
@@ -208,7 +212,8 @@ class TestConfigLoading:
         from nstd.config import ConfigurationError, load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -259,7 +264,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         with pytest.raises(ConfigurationError, match="secret"):
             load_config(config_dir=tmp_path)
@@ -276,11 +282,13 @@ class TestConfigLoading:
         from nstd.config import ConfigurationError, load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
-        """))
+        """)
+        )
 
         with pytest.raises(ConfigurationError):
             load_config(config_dir=tmp_path)
@@ -290,7 +298,8 @@ class TestConfigLoading:
         from nstd.config import load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -340,7 +349,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         cfg = load_config(config_dir=tmp_path)
         assert cfg.scheduling.min_block_hours == 0.25
@@ -359,7 +369,8 @@ class TestConfigLoading:
         from nstd.config import ConfigurationError, load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -410,7 +421,8 @@ class TestConfigLoading:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         with pytest.raises(ConfigurationError, match="Invalid configuration"):
             load_config(config_dir=tmp_path)
@@ -424,7 +436,8 @@ class TestConfigWorkingHours:
         from nstd.config import load_config
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(textwrap.dedent("""\
+        config_file.write_text(
+            textwrap.dedent("""\
             [user]
             github_username = "nate-double-u"
             timezone = "America/Los_Angeles"
@@ -474,7 +487,8 @@ class TestConfigWorkingHours:
 
             [tui]
             theme = "dark"
-        """))
+        """)
+        )
 
         cfg = load_config(config_dir=tmp_path)
         assert cfg.scheduling.work_start == "09:00"
@@ -507,6 +521,4 @@ class TestKeychainIntegration:
 
         with patch("keyring.set_password") as mock_set:
             set_credential("nstd-github", "nate-double-u", "ghp_test123")
-            mock_set.assert_called_once_with(
-                "nstd-github", "nate-double-u", "ghp_test123"
-            )
+            mock_set.assert_called_once_with("nstd-github", "nate-double-u", "ghp_test123")

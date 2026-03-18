@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
-from typing import Any, Optional
 
 import httpx
 
@@ -28,7 +27,7 @@ _FIELD_MAP = {
 }
 
 
-def extract_jira_link(body: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+def extract_jira_link(body: str | None) -> tuple[str | None, str | None]:
     """Extract a Jira link from a GitHub Issue body.
 
     Args:
@@ -105,7 +104,7 @@ def should_sync_issue(issue: dict, config: GitHubConfig) -> bool:
     return len(non_excluded) > 0
 
 
-def extract_project_fields(field_values: Optional[list[dict]]) -> dict:
+def extract_project_fields(field_values: list[dict] | None) -> dict:
     """Extract mapped fields from Projects v2 field values.
 
     Args:
