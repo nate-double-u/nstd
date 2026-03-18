@@ -313,7 +313,7 @@ class TestMarkTaskBlocksCompleted:
         )
 
         # events().get() should not be called for past blocks
-        mock_service.events().get().execute.assert_not_called()
+        mock_service.events.return_value.get.assert_not_called()
 
     def test_already_prefixed_not_double_prefixed(self, conn):
         """Blocks already prefixed with ✓ should not get double-prefixed."""
@@ -361,8 +361,8 @@ class TestMarkTaskBlocksCompleted:
             task_id="gh:cncf/staff:204",
         )
 
-        mock_service.events().get.assert_not_called()
-        mock_service.events().update.assert_not_called()
+        mock_service.events.return_value.get.assert_not_called()
+        mock_service.events.return_value.update.assert_not_called()
 
 
 # --- Block description update tests ---
@@ -421,7 +421,7 @@ class TestUpdateBlockDescription:
             task=task,
         )
 
-        mock_service.events().get.assert_not_called()
+        mock_service.events.return_value.get.assert_not_called()
 
 
 # --- GitHub-only guard tests ---
@@ -494,4 +494,4 @@ class TestPastBlockWithoutFlag:
         )
 
         # Should not call GCal API for this actually-past block
-        mock_service.events().get().execute.assert_not_called()
+        mock_service.events.return_value.get.assert_not_called()
