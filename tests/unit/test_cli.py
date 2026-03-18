@@ -111,6 +111,35 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "never" in result.output.lower() or "no sync" in result.output.lower()
 
+    @patch("nstd.cli._get_db_path")
+    def test_status_with_sync_entry(self, mock_db_path, runner, tmp_path):
+        """Status with existing sync log should print last sync info."""
+        from nstd.db import complete_sync_log, create_schema, get_connection, start_sync_log
+
+        db_file = tmp_path / "nstd.db"
+        mock_db_path.return_value = str(db_file)
+
+        conn = get_connection(str(db_file))
+        create_schema(conn)
+        log_id = start_sync_log(conn, source="all")
+        complete_sync_log(conn, log_id, records_fetched=10, records_updated=5)
+        conn.close()
+
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "Last sync" in result.output
+        assert "Fetched: 10" in result.output
+        assert "Updated: 5" in result.output
+
+    @patch("nstd.cli._get_db_path")
+    def test_status_missing_dir(self, mock_db_path, runner, tmp_path):
+        """Status with missing config dir should report 'never synced'."""
+        mock_db_path.return_value = str(tmp_path / "nonexistent" / "nstd.db")
+
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "never" in result.output.lower() or "setup" in result.output.lower()
+
 
 # --- Config command tests ---
 
@@ -150,6 +179,56 @@ class TestLogsCommand:
         """Logs with empty DB should report 'no entries'."""
         db_file = tmp_path / "nstd.db"
         mock_db_path.return_value = str(db_file)
+
+        result = runner.invoke(cli, ["logs"])
+        assert result.exit_code == 0
+        assert "no" in result.output.lower()
+
+    @patch("nstd.cli._get_db_path")
+    def test_logs_with_entries(self, mock_db_path, runner, tmp_path):
+        """Logs with sync entries should print them."""
+        from nstd.db import complete_sync_log, create_schema, get_connection, start_sync_log
+
+        db_file = tmp_path / "nstd.db"
+        mock_db_path.return_value = str(db_file)
+
+        conn = get_connection(str(db_file))
+        create_schema(conn)
+        log_id = start_sync_log(conn, source="all")
+        complete_sync_log(conn, log_id, records_fetched=15, records_updated=10)
+        conn.close()
+
+        result = runner.invoke(cli, ["logs"])
+        assert result.exit_code == 0
+        assert "fetched=15" in result.output
+        assert "updated=10" in result.output
+
+    @patch("nstd.cli._get_db_path")
+    def test_logs_null_source(self, mock_db_path, runner, tmp_path):
+        """Logs with NULL source should not crash."""
+        from nstd.db import create_schema, get_connection
+
+        db_file = tmp_path / "nstd.db"
+        mock_db_path.return_value = str(db_file)
+
+        conn = get_connection(str(db_file))
+        create_schema(conn)
+        # Insert with NULL source manually
+        conn.execute(
+            "INSERT INTO sync_log (source, started_at, status, records_fetched, records_updated) "
+            "VALUES (NULL, '2026-03-18T12:00:00Z', 'success', 5, 3)"
+        )
+        conn.commit()
+        conn.close()
+
+        result = runner.invoke(cli, ["logs"])
+        assert result.exit_code == 0
+        assert "all" in result.output  # NULL source should display as "all"
+
+    @patch("nstd.cli._get_db_path")
+    def test_logs_missing_dir(self, mock_db_path, runner, tmp_path):
+        """Logs with missing config dir should report 'no entries'."""
+        mock_db_path.return_value = str(tmp_path / "nonexistent" / "nstd.db")
 
         result = runner.invoke(cli, ["logs"])
         assert result.exit_code == 0

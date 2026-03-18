@@ -1,20 +1,22 @@
 """CLI entry point for nstd.
 
 All commands per §10:
-  nstd              — Open TUI (default)
-  nstd setup        — Interactive first-run setup wizard
-  nstd sync         — Run one full sync cycle and exit
-  nstd sync --source github — Sync only one source
-  nstd sync --daemon — Run continuously (used by launchd)
-  nstd status       — Print last sync status to stdout
-  nstd block <task-id> — Open scheduling dialog for a task
-  nstd config       — Open config.toml in $EDITOR
-  nstd logs         — Tail the sync log
+  nstd              - Open TUI (default)
+  nstd setup        - Interactive first-run setup wizard
+  nstd sync         - Run one full sync cycle and exit
+  nstd sync --source github - Sync only one source
+  nstd sync --daemon - Run continuously (used by launchd)
+  nstd status       - Print last sync status to stdout
+  nstd block <task-id> - Open scheduling dialog for a task
+  nstd config       - Open config.toml in $EDITOR
+  nstd logs         - Tail the sync log
 """
 
 from __future__ import annotations
 
 import os
+import shlex
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -29,6 +31,16 @@ _DEFAULT_DB_PATH = _DEFAULT_CONFIG_DIR / "nstd.db"
 def _get_db_path() -> str:
     """Get the database file path."""
     return str(_DEFAULT_DB_PATH)
+
+
+def _safe_get_connection(db_path: str) -> sqlite3.Connection | None:
+    """Open a DB connection, returning None if the path doesn't exist."""
+    db_dir = Path(db_path).parent
+    if not db_dir.exists():
+        return None
+    conn = get_connection(db_path)
+    create_schema(conn)
+    return conn
 
 
 @click.group(invoke_without_command=True)
@@ -66,8 +78,11 @@ def sync(source: str | None, daemon: bool) -> None:
 def status() -> None:
     """Print last sync status to stdout."""
     db_path = _get_db_path()
-    conn = get_connection(db_path)
-    create_schema(conn)
+    conn = _safe_get_connection(db_path)
+
+    if conn is None:
+        click.echo("No sync has been run yet (never synced). Run 'nstd setup' first.")
+        return
 
     row = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
@@ -76,7 +91,7 @@ def status() -> None:
         click.echo("No sync has been run yet (never synced).")
         return
 
-    click.echo(  # pragma: no cover
+    click.echo(
         f"Last sync: {row['started_at']} | Status: {row['status']} | "
         f"Fetched: {row['records_fetched']} | Updated: {row['records_updated']}"
     )
@@ -93,22 +108,26 @@ def block(task_id: str) -> None:
 def config_cmd() -> None:
     """Open config.toml in $EDITOR."""
     config_path = _DEFAULT_CONFIG_DIR / "config.toml"
-    editor = os.environ.get("EDITOR", "vi")
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR", "vi")
 
     if not config_path.exists():
         click.echo(f"Config file not found: {config_path}")  # pragma: no cover
         click.echo("Run 'nstd setup' first.")  # pragma: no cover
         return  # pragma: no cover
 
-    subprocess.run([editor, str(config_path)], check=False)  # pragma: no cover
+    cmd = [*shlex.split(editor), str(config_path)]
+    subprocess.run(cmd, check=False)  # pragma: no cover
 
 
 @cli.command()
 def logs() -> None:
     """Show recent sync log entries."""
     db_path = _get_db_path()
-    conn = get_connection(db_path)
-    create_schema(conn)
+    conn = _safe_get_connection(db_path)
+
+    if conn is None:
+        click.echo("No sync log entries found. Run 'nstd setup' first.")
+        return
 
     rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20").fetchall()
     conn.close()
@@ -117,9 +136,10 @@ def logs() -> None:
         click.echo("No sync log entries found.")
         return
 
-    for row in rows:  # pragma: no cover
+    for row in rows:
+        source = row["source"] or "all"
         click.echo(
-            f"{row['started_at']}  {row['source']:>8}  "
+            f"{row['started_at']}  {source:>8}  "
             f"{row['status']:>7}  fetched={row['records_fetched']}  "
             f"updated={row['records_updated']}"
         )
