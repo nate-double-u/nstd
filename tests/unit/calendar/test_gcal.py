@@ -493,3 +493,17 @@ class TestEventParsing:
             "status": "confirmed",
         }
         assert event_date(event) == "2026-03-20"
+
+    def test_malformed_event_duration_returns_none(self):
+        """Malformed events without start/end dateTime or date return None."""
+        from nstd.calendar.gcal import event_duration_hours
+
+        event = {"id": "bad", "summary": "No times", "start": {}, "end": {}}
+        assert event_duration_hours(event) is None
+
+    def test_missing_start_event_date_returns_none(self):
+        """Events without recognizable start time return None for date."""
+        from nstd.calendar.gcal import event_date
+
+        event = {"id": "bad", "summary": "No start", "start": {}}
+        assert event_date(event) is None

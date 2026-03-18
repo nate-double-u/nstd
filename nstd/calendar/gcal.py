@@ -17,8 +17,9 @@ from dateutil import parser as dtparser
 def _build_service(credentials_path: str, interactive: bool = False):  # pragma: no cover
     """Build a Google Calendar API service from OAuth credentials.
 
-    This is a thin wrapper around the Google API client library,
-    tested via integration tests only.
+    This is a thin wrapper around the Google API client library.
+    Excluded from unit test coverage as it depends on real Google OAuth
+    infrastructure. Will be exercised by integration tests.
 
     Args:
         credentials_path: Path to credentials directory.
@@ -123,10 +124,11 @@ def fetch_calendar_events(
     return all_events
 
 
-def event_duration_hours(event: dict) -> float:
+def event_duration_hours(event: dict) -> float | None:
     """Calculate the duration of an event in hours.
 
     Handles both dateTime events and all-day (date) events.
+    Returns None for malformed/unsupported events.
     """
     start = event.get("start", {})
     end = event.get("end", {})
@@ -138,20 +140,23 @@ def event_duration_hours(event: dict) -> float:
         start_dt = dtparser.isoparse(start["date"])
         end_dt = dtparser.isoparse(end["date"])
     else:
-        return 0.0
+        return None
 
     delta = end_dt - start_dt
     return delta.total_seconds() / 3600.0
 
 
-def event_date(event: dict) -> str:
-    """Extract the date (YYYY-MM-DD) from an event's start time."""
+def event_date(event: dict) -> str | None:
+    """Extract the date (YYYY-MM-DD) from an event's start time.
+
+    Returns None if the event has no recognizable start time.
+    """
     start = event.get("start", {})
     if "dateTime" in start:
         return dtparser.isoparse(start["dateTime"]).strftime("%Y-%m-%d")
     elif "date" in start:
         return start["date"]
-    return ""
+    return None
 
 
 def mark_past_blocks(conn: sqlite3.Connection) -> int:
