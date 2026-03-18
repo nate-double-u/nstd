@@ -82,6 +82,7 @@ class TestRunTaskSync:
 
         assert len(result["errors"]) >= 1
         assert "GitHub" in result["errors"][0]
+        assert "GitHub API rate limited" in result["errors"][0]
 
     @patch("nstd.daemon._sync_asana")
     @patch("nstd.daemon._sync_jira")
@@ -127,6 +128,37 @@ class TestRunTaskSync:
         log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
         assert log is not None
         assert log["status"] == "success"
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_sync_log_source_is_null_for_full_sync(self, mock_gh, mock_jira, mock_asana, conn):
+        """Full sync should log source=NULL per spec (NULL = full sync)."""
+        mock_gh.return_value = {"fetched": 1, "updated": 1}
+        mock_jira.return_value = {"fetched": 0, "updated": 0, "errors": []}
+        mock_asana.return_value = {"fetched": 0, "updated": 0, "errors": []}
+
+        config = MagicMock()
+        run_task_sync(conn, config)
+
+        log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert log["source"] is None
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_aggregates_per_source_errors(self, mock_gh, mock_jira, mock_asana, conn):
+        """Per-source errors from stats dicts should be aggregated."""
+        mock_gh.return_value = {"fetched": 5, "updated": 3, "errors": ["rate limited on repo X"]}
+        mock_jira.return_value = {"fetched": 2, "updated": 2, "errors": []}
+        mock_asana.return_value = {"fetched": 1, "updated": 0, "errors": ["project not found"]}
+
+        config = MagicMock()
+        result = run_task_sync(conn, config)
+
+        assert len(result["errors"]) == 2
+        assert "GitHub: rate limited on repo X" in result["errors"][0]
+        assert "Asana: project not found" in result["errors"][1]
 
     @patch("nstd.daemon._sync_asana")
     @patch("nstd.daemon._sync_jira")

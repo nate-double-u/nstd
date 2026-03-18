@@ -148,7 +148,7 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
         Dict with keys: total_fetched (int), total_updated (int),
                         errors (list[str]), log_id (int)
     """
-    log_id = start_sync_log(conn, source="all")
+    log_id = start_sync_log(conn, source=None)
     total_fetched = 0
     total_updated = 0
     errors = []
@@ -165,14 +165,17 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
             stats = sync_fn(conn, config)
             total_fetched += stats.get("fetched", 0)
             total_updated += stats.get("updated", 0)
+            # Aggregate per-source errors from stats dict
+            for err in stats.get("errors", []):
+                errors.append(f"{source_name}: {err}")
             logger.info(
                 "Synced %d/%d tasks from %s",
                 stats.get("updated", 0),
                 stats.get("fetched", 0),
                 source_name,
             )
-        except Exception:
-            error_msg = f"{source_name} sync failed"
+        except Exception as exc:
+            error_msg = f"{source_name} sync failed: {exc}"
             errors.append(error_msg)
             logger.exception(error_msg)
 
