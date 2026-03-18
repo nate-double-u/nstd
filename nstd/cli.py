@@ -97,7 +97,7 @@ def status() -> None:
 
     try:
         row = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
-    except sqlite3.OperationalError:
+    except sqlite3.Error:
         click.echo("No sync has been run yet (never synced).")
         return
     finally:
@@ -152,7 +152,7 @@ def logs() -> None:
 
     try:
         rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 20").fetchall()
-    except sqlite3.OperationalError:
+    except sqlite3.Error:
         click.echo("No sync log entries found.")
         return
     finally:

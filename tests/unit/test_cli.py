@@ -204,6 +204,17 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "never" in result.output.lower() or "setup" in result.output.lower()
 
+    @patch("nstd.cli._get_db_path")
+    def test_status_corrupted_db(self, mock_db_path, runner, tmp_path):
+        """Status with corrupted DB file should handle gracefully."""
+        db_file = tmp_path / "nstd.db"
+        db_file.write_text("this is not a sqlite database")
+        mock_db_path.return_value = str(db_file)
+
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "never" in result.output.lower() or "no sync" in result.output.lower()
+
 
 # --- Config command tests ---
 
@@ -377,6 +388,17 @@ class TestLogsCommand:
 
         db_file = tmp_path / "nstd.db"
         sqlite3.connect(str(db_file)).close()
+        mock_db_path.return_value = str(db_file)
+
+        result = runner.invoke(cli, ["logs"])
+        assert result.exit_code == 0
+        assert "no" in result.output.lower()
+
+    @patch("nstd.cli._get_db_path")
+    def test_logs_corrupted_db(self, mock_db_path, runner, tmp_path):
+        """Logs with corrupted DB file should handle gracefully."""
+        db_file = tmp_path / "nstd.db"
+        db_file.write_text("this is not a sqlite database")
         mock_db_path.return_value = str(db_file)
 
         result = runner.invoke(cli, ["logs"])
