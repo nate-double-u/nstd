@@ -188,6 +188,13 @@ class TestLoadTasks:
         assert tasks[0]["id"] == "gh:cncf/staff:2"
         assert tasks[1]["id"] == "gh:cncf/staff:1"
 
+    def test_invalid_sort_column_raises_error(self, conn):
+        """SQL injection via sort_by should raise ValueError."""
+        from nstd.tui.app import load_tasks
+
+        with pytest.raises(ValueError, match="Invalid sort column"):
+            load_tasks(conn, sort_by="id; DROP TABLE tasks")
+
 
 # --- Sync log loading ---
 

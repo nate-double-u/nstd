@@ -96,11 +96,16 @@ def load_tasks(
     Args:
         conn: Database connection.
         source_filter: If set, only return tasks from this source.
-        sort_by: Column to sort by (e.g. 'due_date', 'priority', 'updated_at').
+        sort_by: Column to sort by. Must be one of the allowed sort columns.
 
     Returns:
         List of task dicts.
+
+    Raises:
+        ValueError: If sort_by is not an allowed column.
     """
+    allowed_sort_columns = {"due_date", "priority", "updated_at", "created_at", "title", "source"}
+
     query = "SELECT * FROM tasks WHERE state = 'open'"
     params: list = []
 
@@ -112,6 +117,9 @@ def load_tasks(
         # Tasks with due dates first (ascending), then nulls
         query += " ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC"
     elif sort_by:
+        if sort_by not in allowed_sort_columns:
+            msg = f"Invalid sort column: {sort_by}"
+            raise ValueError(msg)
         query += f" ORDER BY {sort_by}"
     else:
         query += " ORDER BY updated_at DESC"
