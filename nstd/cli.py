@@ -127,16 +127,16 @@ def config_cmd() -> None:
     editor = os.environ.get("VISUAL") or os.environ.get("EDITOR", "vi")
 
     if not config_path.exists():
-        click.echo(f"Config file not found: {config_path}")  # pragma: no cover
-        click.echo("Run 'nstd setup' first.")  # pragma: no cover
-        return  # pragma: no cover
+        click.echo(f"Config file not found: {config_path}")
+        click.echo("Run 'nstd setup' first.")
+        return
 
     cmd = [*shlex.split(editor), str(config_path)]
-    try:  # pragma: no cover
-        result = subprocess.run(cmd, check=False)  # pragma: no cover
-    except FileNotFoundError:  # pragma: no cover
-        raise click.ClickException(f"Editor not found: {editor}") from None  # pragma: no cover
-    if result.returncode != 0:  # pragma: no cover
+    try:
+        result = subprocess.run(cmd, check=False)
+    except FileNotFoundError:
+        raise click.ClickException(f"Editor not found: {editor}") from None
+    if result.returncode != 0:
         raise click.ClickException(f"Editor exited with code {result.returncode}")
 
 

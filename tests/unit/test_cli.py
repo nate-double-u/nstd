@@ -191,6 +191,78 @@ class TestConfigCommand:
         result = runner.invoke(cli, ["config", "--help"])
         assert result.exit_code == 0
 
+    def test_config_missing_file(self, runner, tmp_path):
+        """Config command reports missing config file."""
+        fake_dir = tmp_path / "nstd"
+        fake_dir.mkdir()
+        with patch("nstd.cli._DEFAULT_CONFIG_DIR", fake_dir):
+            result = runner.invoke(cli, ["config"])
+        assert "Config file not found" in result.output
+        assert "nstd setup" in result.output
+
+    def test_config_opens_editor(self, runner, tmp_path):
+        """Config command opens editor on existing config file."""
+        fake_dir = tmp_path / "nstd"
+        fake_dir.mkdir()
+        config_file = fake_dir / "config.toml"
+        config_file.write_text("[general]\n")
+        with (
+            patch("nstd.cli._DEFAULT_CONFIG_DIR", fake_dir),
+            patch("subprocess.run", return_value=type("R", (), {"returncode": 0})()) as mock_run,
+            patch.dict("os.environ", {"EDITOR": "nano"}),
+        ):
+            result = runner.invoke(cli, ["config"])
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+        assert str(config_file) in mock_run.call_args[0][0]
+
+    def test_config_editor_not_found(self, runner, tmp_path):
+        """Config command handles missing editor binary."""
+        fake_dir = tmp_path / "nstd"
+        fake_dir.mkdir()
+        config_file = fake_dir / "config.toml"
+        config_file.write_text("[general]\n")
+        with (
+            patch("nstd.cli._DEFAULT_CONFIG_DIR", fake_dir),
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch.dict("os.environ", {"EDITOR": "nonexistent-editor"}),
+        ):
+            result = runner.invoke(cli, ["config"])
+        assert result.exit_code != 0
+        assert "Editor not found" in result.output
+
+    def test_config_editor_nonzero_exit(self, runner, tmp_path):
+        """Config command reports editor failure."""
+        fake_dir = tmp_path / "nstd"
+        fake_dir.mkdir()
+        config_file = fake_dir / "config.toml"
+        config_file.write_text("[general]\n")
+        with (
+            patch("nstd.cli._DEFAULT_CONFIG_DIR", fake_dir),
+            patch("subprocess.run", return_value=type("R", (), {"returncode": 1})()),
+            patch.dict("os.environ", {"EDITOR": "vim"}),
+        ):
+            result = runner.invoke(cli, ["config"])
+        assert result.exit_code != 0
+        assert "Editor exited with code 1" in result.output
+
+    def test_config_honors_visual_over_editor(self, runner, tmp_path):
+        """Config command prefers $VISUAL over $EDITOR."""
+        fake_dir = tmp_path / "nstd"
+        fake_dir.mkdir()
+        config_file = fake_dir / "config.toml"
+        config_file.write_text("[general]\n")
+        with (
+            patch("nstd.cli._DEFAULT_CONFIG_DIR", fake_dir),
+            patch("subprocess.run", return_value=type("R", (), {"returncode": 0})()) as mock_run,
+            patch.dict("os.environ", {"VISUAL": "code -w", "EDITOR": "vim"}),
+        ):
+            result = runner.invoke(cli, ["config"])
+        assert result.exit_code == 0
+        cmd_args = mock_run.call_args[0][0]
+        assert cmd_args[0] == "code"
+        assert "-w" in cmd_args
+
 
 # --- Logs command tests ---
 
