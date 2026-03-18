@@ -46,6 +46,9 @@ def generate_config_dict(answers: dict) -> dict:
             "projects": answers["jira_projects"],
             "assigned_only": True,
             "start_date_field": answers.get("jira_start_date_field", ""),
+            "comment_visibility_role": answers.get(
+                "jira_comment_visibility_role", "Service Desk Team"
+            ),
         },
         "asana": {
             "workspace_gid": answers["asana_workspace_gid"],
@@ -128,6 +131,9 @@ def _dict_to_toml(data: dict, prefix: str = "") -> str:
 
     Simple serialiser — handles strings, ints, floats, bools, and lists of strings.
     Nested dicts become TOML sections.
+
+    Raises:
+        TypeError: If an unsupported value type is encountered.
     """
     lines: list[str] = []
     sections: list[tuple[str, dict]] = []
@@ -144,6 +150,9 @@ def _dict_to_toml(data: dict, prefix: str = "") -> str:
             lines.append(f'{key} = "{value}"')
         elif isinstance(value, int | float):
             lines.append(f"{key} = {value}")
+        else:
+            msg = f"Unsupported TOML value type for key '{key}': {type(value).__name__}"
+            raise TypeError(msg)
 
     result = "\n".join(lines)
 
@@ -223,6 +232,8 @@ def write_plist(
 
 # --- Credential verification ---
 
+_REQUEST_TIMEOUT = 15  # seconds
+
 
 def verify_github_token(token: str) -> str | None:
     """Verify a GitHub PAT by calling /user.
@@ -237,10 +248,11 @@ def verify_github_token(token: str) -> str | None:
         response = httpx.get(
             "https://api.github.com/user",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=_REQUEST_TIMEOUT,
         )
         if response.status_code == 200:
             return response.json()["login"]
-    except Exception:
+    except (httpx.HTTPError, KeyError, ValueError):
         pass
     return None
 
@@ -264,10 +276,11 @@ def verify_jira_credentials(
         response = httpx.get(
             f"{server_url}/rest/api/3/myself",
             auth=(username, api_token),
+            timeout=_REQUEST_TIMEOUT,
         )
         if response.status_code == 200:
             return response.json()["displayName"]
-    except Exception:
+    except (httpx.HTTPError, KeyError, ValueError):
         pass
     return None
 
@@ -285,10 +298,11 @@ def verify_asana_token(token: str) -> str | None:
         response = httpx.get(
             "https://app.asana.com/api/1.0/users/me",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=_REQUEST_TIMEOUT,
         )
         if response.status_code == 200:
             return response.json()["data"]["name"]
-    except Exception:
+    except (httpx.HTTPError, KeyError, ValueError):
         pass
     return None
 
@@ -310,20 +324,25 @@ def discover_jira_date_fields(
 
     Returns:
         List of dicts with 'id' and 'name' for date fields.
+        Empty list on any error.
     """
-    response = httpx.get(
-        f"{server_url}/rest/api/3/field",
-        auth=(username, api_token),
-    )
-    if response.status_code != 200:
-        return []
+    try:
+        response = httpx.get(
+            f"{server_url}/rest/api/3/field",
+            auth=(username, api_token),
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return []
 
-    fields = response.json()
-    return [
-        {"id": f["id"], "name": f["name"]}
-        for f in fields
-        if f.get("schema", {}).get("type") == "date"
-    ]
+        fields = response.json()
+        return [
+            {"id": f["id"], "name": f["name"]}
+            for f in fields
+            if f.get("schema", {}).get("type") == "date"
+        ]
+    except (httpx.HTTPError, KeyError, ValueError):
+        return []
 
 
 def list_jira_projects(
@@ -340,15 +359,20 @@ def list_jira_projects(
 
     Returns:
         List of dicts with 'key' and 'name'.
+        Empty list on any error.
     """
-    response = httpx.get(
-        f"{server_url}/rest/api/3/project",
-        auth=(username, api_token),
-    )
-    if response.status_code != 200:
-        return []
+    try:
+        response = httpx.get(
+            f"{server_url}/rest/api/3/project",
+            auth=(username, api_token),
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return []
 
-    return [{"key": p["key"], "name": p["name"]} for p in response.json()]
+        return [{"key": p["key"], "name": p["name"]} for p in response.json()]
+    except (httpx.HTTPError, KeyError, ValueError):
+        return []
 
 
 def list_asana_workspaces(token: str) -> list[dict]:
@@ -359,15 +383,20 @@ def list_asana_workspaces(token: str) -> list[dict]:
 
     Returns:
         List of dicts with 'gid' and 'name'.
+        Empty list on any error.
     """
-    response = httpx.get(
-        "https://app.asana.com/api/1.0/workspaces",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    if response.status_code != 200:
-        return []
+    try:
+        response = httpx.get(
+            "https://app.asana.com/api/1.0/workspaces",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return []
 
-    return [{"gid": w["gid"], "name": w["name"]} for w in response.json()["data"]]
+        return [{"gid": w["gid"], "name": w["name"]} for w in response.json()["data"]]
+    except (httpx.HTTPError, KeyError, ValueError):
+        return []
 
 
 def list_asana_projects(token: str, workspace_gid: str) -> list[dict]:
@@ -379,16 +408,21 @@ def list_asana_projects(token: str, workspace_gid: str) -> list[dict]:
 
     Returns:
         List of dicts with 'gid' and 'name'.
+        Empty list on any error.
     """
-    response = httpx.get(
-        "https://app.asana.com/api/1.0/projects",
-        headers={"Authorization": f"Bearer {token}"},
-        params={"workspace": workspace_gid},
-    )
-    if response.status_code != 200:
-        return []
+    try:
+        response = httpx.get(
+            "https://app.asana.com/api/1.0/projects",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"workspace": workspace_gid},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if response.status_code != 200:
+            return []
 
-    return [{"gid": p["gid"], "name": p["name"]} for p in response.json()["data"]]
+        return [{"gid": p["gid"], "name": p["name"]} for p in response.json()["data"]]
+    except (httpx.HTTPError, KeyError, ValueError):
+        return []
 
 
 # --- Credential storage ---

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 # --- Config generation tests ---
@@ -67,6 +68,26 @@ class TestGenerateConfigDict:
         config = generate_config_dict(answers)
 
         assert config["jira"]["start_date_field"] == "customfield_10015"
+
+    def test_jira_comment_visibility_role(self):
+        """Jira config should include the comment visibility role."""
+        from nstd.setup import generate_config_dict
+
+        answers = _make_answers(jira_comment_visibility_role="Internal Team")
+        config = generate_config_dict(answers)
+
+        assert config["jira"]["comment_visibility_role"] == "Internal Team"
+
+    def test_jira_comment_visibility_role_default(self):
+        """Jira comment visibility role should default to 'Service Desk Team'."""
+        from nstd.setup import generate_config_dict
+
+        answers = _make_answers()
+        # Remove the role from answers to test default
+        answers.pop("jira_comment_visibility_role", None)
+        config = generate_config_dict(answers)
+
+        assert config["jira"]["comment_visibility_role"] == "Service Desk Team"
 
     def test_asana_project_gids(self):
         """Asana config should include selected project GIDs."""
@@ -187,6 +208,14 @@ class TestWriteConfigToml:
             parsed = tomllib.load(f)
         assert parsed["user"]["github_username"] == "updated-user"
 
+    def test_unsupported_type_raises_error(self, tmp_path):
+        """Unsupported value types should raise TypeError."""
+        from nstd.setup import write_config_toml
+
+        config = {"bad_key": None}  # None is not a supported TOML type
+        with pytest.raises(TypeError, match="Unsupported TOML value type"):
+            write_config_toml(config, config_dir=tmp_path)
+
 
 # --- Plist generation tests ---
 
@@ -288,7 +317,7 @@ class TestVerifyGitHub:
         """Network failure should return None, not raise."""
         from nstd.setup import verify_github_token
 
-        with patch("nstd.setup.httpx.get", side_effect=Exception("connection refused")):
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("connection refused")):
             result = verify_github_token("ghp_fake_token")
 
         assert result is None
@@ -330,7 +359,7 @@ class TestVerifyJira:
         """Network failure should return None, not raise."""
         from nstd.setup import verify_jira_credentials
 
-        with patch("nstd.setup.httpx.get", side_effect=Exception("timeout")):
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("timeout")):
             result = verify_jira_credentials("https://test.atlassian.net", "user@test.com", "token")
 
         assert result is None
@@ -368,7 +397,7 @@ class TestVerifyAsana:
         """Network failure should return None, not raise."""
         from nstd.setup import verify_asana_token
 
-        with patch("nstd.setup.httpx.get", side_effect=Exception("dns failure")):
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("dns failure")):
             result = verify_asana_token("fake_token")
 
         assert result is None
@@ -417,6 +446,17 @@ class TestDiscoverJiraFields:
 
         assert fields == []
 
+    def test_network_error_returns_empty_list(self):
+        """Network failure should return empty list."""
+        from nstd.setup import discover_jira_date_fields
+
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("dns failure")):
+            fields = discover_jira_date_fields(
+                "https://test.atlassian.net", "user@test.com", "token"
+            )
+
+        assert fields == []
+
 
 class TestListJiraProjects:
     """§11.2: List accessible Jira projects."""
@@ -446,6 +486,15 @@ class TestListJiraProjects:
         mock_response.status_code = 500
 
         with patch("nstd.setup.httpx.get", return_value=mock_response):
+            projects = list_jira_projects("https://test.atlassian.net", "user@test.com", "token")
+
+        assert projects == []
+
+    def test_network_error_returns_empty_list(self):
+        """Network failure should return empty list."""
+        from nstd.setup import list_jira_projects
+
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("timeout")):
             projects = list_jira_projects("https://test.atlassian.net", "user@test.com", "token")
 
         assert projects == []
@@ -485,6 +534,15 @@ class TestListAsanaWorkspaces:
 
         assert workspaces == []
 
+    def test_network_error_returns_empty_list(self):
+        """Network failure should return empty list."""
+        from nstd.setup import list_asana_workspaces
+
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("dns")):
+            workspaces = list_asana_workspaces("fake_token")
+
+        assert workspaces == []
+
 
 class TestListAsanaProjects:
     """§11.3: List Asana projects in a workspace."""
@@ -516,6 +574,15 @@ class TestListAsanaProjects:
         mock_response.status_code = 500
 
         with patch("nstd.setup.httpx.get", return_value=mock_response):
+            projects = list_asana_projects("fake_token", "12345")
+
+        assert projects == []
+
+    def test_network_error_returns_empty_list(self):
+        """Network failure should return empty list."""
+        from nstd.setup import list_asana_projects
+
+        with patch("nstd.setup.httpx.get", side_effect=httpx.ConnectError("timeout")):
             projects = list_asana_projects("fake_token", "12345")
 
         assert projects == []
