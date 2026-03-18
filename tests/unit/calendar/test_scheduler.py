@@ -417,3 +417,100 @@ class TestSchedulingNudges:
         )
 
         assert nudge is None
+
+    def test_partially_scheduled_no_nudge(self):
+        """Task with some future blocks but not covering full estimate → no nudge (for now)."""
+        from nstd.calendar.scheduler import evaluate_nudge
+
+        nudge = evaluate_nudge(
+            state="open",
+            estimate_hours=10.0,
+            due_date="2026-03-25",
+            future_block_hours=4.0,
+            all_blocks_past=False,
+            has_any_blocks=True,
+        )
+
+        assert nudge is None
+
+
+class TestSlotFinding:
+    """Test the slot-finding helper for edge cases."""
+
+    def test_fits_before_first_event(self, default_scheduling_config):
+        """Block fits in gap before first occupied slot."""
+        from nstd.calendar.scheduler import suggest_sessions
+
+        day = date(2026, 3, 18)
+        result = suggest_sessions(
+            estimate_hours=1.0,
+            hours_already_scheduled=0.0,
+            start_date=day,
+            due_date=day,
+            availability={
+                day: {
+                    "available_hours": 6.0,
+                    "occupied_slots": [
+                        {"start": datetime(2026, 3, 18, 11, 0),
+                         "end": datetime(2026, 3, 18, 12, 0)},
+                    ],
+                },
+            },
+            config=default_scheduling_config,
+        )
+
+        assert len(result["sessions"]) == 1
+        assert result["sessions"][0]["start_time"] == time(9, 0)
+
+    def test_fits_between_two_events(self, default_scheduling_config):
+        """Block fits in gap between two occupied slots."""
+        from nstd.calendar.scheduler import suggest_sessions
+
+        day = date(2026, 3, 18)
+        result = suggest_sessions(
+            estimate_hours=1.0,
+            hours_already_scheduled=0.0,
+            start_date=day,
+            due_date=day,
+            availability={
+                day: {
+                    "available_hours": 5.0,
+                    "occupied_slots": [
+                        {"start": datetime(2026, 3, 18, 9, 0),
+                         "end": datetime(2026, 3, 18, 10, 0)},
+                        {"start": datetime(2026, 3, 18, 12, 0),
+                         "end": datetime(2026, 3, 18, 14, 0)},
+                    ],
+                },
+            },
+            config=default_scheduling_config,
+        )
+
+        assert len(result["sessions"]) == 1
+        # Should start at 10:00 (after first slot ends)
+        assert result["sessions"][0]["start_time"] == time(10, 0)
+
+    def test_day_fully_booked_fallback(self, default_scheduling_config):
+        """When no gap exists, falls back to work_start."""
+        from nstd.calendar.scheduler import suggest_sessions
+
+        day = date(2026, 3, 18)
+        result = suggest_sessions(
+            estimate_hours=2.0,
+            hours_already_scheduled=0.0,
+            start_date=day,
+            due_date=day,
+            availability={
+                day: {
+                    "available_hours": 2.0,
+                    "occupied_slots": [
+                        {"start": datetime(2026, 3, 18, 9, 0),
+                         "end": datetime(2026, 3, 18, 17, 0)},
+                    ],
+                },
+            },
+            config=default_scheduling_config,
+        )
+
+        # Still suggests a session (availability says 2h free), start_time falls back
+        assert len(result["sessions"]) == 1

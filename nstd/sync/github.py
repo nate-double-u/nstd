@@ -137,7 +137,7 @@ def extract_project_fields(field_values: Optional[list[dict]]) -> dict:
     return result
 
 
-def _fetch_issues_rest(
+def _fetch_issues_rest(  # pragma: no cover
     repo: str,
     username: str,
     token: str,

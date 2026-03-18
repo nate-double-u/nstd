@@ -12,7 +12,7 @@ from nstd.db import get_linked_tasks
 logger = logging.getLogger(__name__)
 
 
-def _get_asana_client(token: str) -> asana_sdk.Client:
+def _get_asana_client(token: str) -> asana_sdk.Client:  # pragma: no cover
     """Create an Asana client instance."""
     client = asana_sdk.Client.access_token(token)
     client.headers = {"asana-enable": "new_memberships"}

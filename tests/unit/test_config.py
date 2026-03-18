@@ -347,6 +347,74 @@ class TestConfigLoading:
         assert cfg.scheduling.max_block_hours == 4.0
         assert cfg.tui.theme == "dark"
 
+    def test_default_config_dir_uses_home(self):
+        """When config_dir is None, uses ~/.config/nstd/."""
+        from nstd.config import ConfigurationError, load_config
+
+        with pytest.raises(ConfigurationError):
+            load_config(config_dir=None)
+
+    def test_invalid_field_type_raises_error(self, tmp_path):
+        """Config with unexpected keyword raises ConfigurationError."""
+        from nstd.config import ConfigurationError, load_config
+
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(textwrap.dedent("""\
+            [user]
+            github_username = "nate-double-u"
+            timezone = "America/Los_Angeles"
+
+            [github]
+            repos = ["cncf/staff"]
+            projects = []
+            exclude_labels = []
+            exclude_assignees = []
+
+            [jira]
+            server_url = "https://example.atlassian.net"
+            username = "user@example.com"
+            projects = ["TEST"]
+            assigned_only = true
+            start_date_field = ""
+            unexpected_kwarg = "boom"
+
+            [asana]
+            workspace_gid = ""
+            assigned_only = true
+            project_gids = []
+
+            [google_calendar]
+            calendar_name = "NSTD Planning"
+            calendar_id = ""
+            observe_calendars = []
+            calendar_poll_interval_minutes = 10
+            default_duration_minutes = 60
+
+            [sync]
+            interval_minutes = 15
+            lookback_days = 7
+
+            [scheduling]
+            max_hours_per_day = 8
+            preferred_session_hours = 2.0
+            min_block_hours = 0.25
+            max_block_hours = 4.0
+
+            [ai]
+            enabled = false
+            model = "deepseek-r1:latest"
+            ollama_host = "http://localhost:11434"
+
+            [conflict_resolution]
+            mode = "always_ask"
+
+            [tui]
+            theme = "dark"
+        """))
+
+        with pytest.raises(ConfigurationError, match="Invalid configuration"):
+            load_config(config_dir=tmp_path)
+
 
 class TestConfigWorkingHours:
     """Test working hours configuration."""

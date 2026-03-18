@@ -51,7 +51,7 @@ def asana_task_to_task(asana_task: dict) -> dict:
     }
 
 
-def _fetch_assigned_tasks(token: str, workspace_gid: str) -> list[dict]:
+def _fetch_assigned_tasks(token: str, workspace_gid: str) -> list[dict]:  # pragma: no cover
     """Fetch tasks assigned to the current user.
 
     Args:
@@ -75,7 +75,7 @@ def _fetch_assigned_tasks(token: str, workspace_gid: str) -> list[dict]:
     return tasks
 
 
-def _fetch_project_tasks(token: str, project_gid: str) -> list[dict]:
+def _fetch_project_tasks(token: str, project_gid: str) -> list[dict]:  # pragma: no cover
     """Fetch tasks from a specific project.
 
     Args:

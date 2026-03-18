@@ -33,4 +33,4 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run unit tests with coverage
-        run: pytest tests/unit/ --cov=nstd --cov-report=term-missing --cov-fail-under=90
+        run: pytest tests/unit/ --cov=nstd --cov-report=term-missing --cov-fail-under=95

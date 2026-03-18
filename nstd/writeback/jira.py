@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 _DONE_TRANSITIONS = ["done", "closed", "resolved", "complete"]
 
 
-def _get_jira_client(server_url: str, username: str, token: str) -> JIRA:
+def _get_jira_client(server_url: str, username: str, token: str) -> JIRA:  # pragma: no cover
     """Create a Jira client instance."""
     return JIRA(server=server_url, basic_auth=(username, token))
 

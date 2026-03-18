@@ -18,7 +18,7 @@ Every feature uses Test-Driven Development. No exceptions.
 2. **Green**: Write the minimum code to pass
 3. **Refactor**: Clean up while tests stay green
 
-No code ships without test coverage. Unit tests must never make real API calls. Minimum 90% line coverage on the `nstd/` package, enforced in CI.
+No code ships without test coverage. Unit tests must never make real API calls. Minimum 95% line coverage on the `nstd/` package, enforced in CI.
 
 ## Git Workflow
 

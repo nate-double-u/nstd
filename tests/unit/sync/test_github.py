@@ -275,6 +275,21 @@ class TestProjectFieldMapping:
         assert extract_project_fields([]) == {}
         assert extract_project_fields(None) == {}
 
+    def test_maps_number_field(self):
+        """Projects v2 Number field type is handled."""
+        from nstd.sync.github import extract_project_fields
+
+        field_values = [
+            {
+                "__typename": "ProjectV2ItemFieldNumberValue",
+                "field": {"name": "Size"},
+                "number": 5,
+            },
+        ]
+
+        fields = extract_project_fields(field_values)
+        assert fields["size"] == 5
+
 
 class TestGitHubSync:
     """Test the full GitHub sync flow (REST + DB upsert)."""
