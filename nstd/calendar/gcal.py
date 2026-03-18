@@ -14,16 +14,20 @@ from datetime import UTC, datetime, timedelta
 from dateutil import parser as dtparser
 
 
-def _build_service(credentials_path: str):  # pragma: no cover
+def _build_service(credentials_path: str, interactive: bool = False):  # pragma: no cover
     """Build a Google Calendar API service from OAuth credentials.
 
     This is a thin wrapper around the Google API client library,
     tested via integration tests only.
+
+    Args:
+        credentials_path: Path to credentials directory.
+        interactive: If True, allow interactive OAuth flow (browser).
+                    If False (default/daemon mode), raise if token is invalid.
     """
     from pathlib import Path
 
     from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
 
     token_path = Path(credentials_path) / "google_token.json"
@@ -38,12 +42,19 @@ def _build_service(credentials_path: str):  # pragma: no cover
             from google.auth.transport.requests import Request
 
             creds.refresh(Request())
-        else:
+        elif interactive:
+            from google_auth_oauthlib.flow import InstalledAppFlow
+
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(client_secret_path),
                 scopes=["https://www.googleapis.com/auth/calendar"],
             )
             creds = flow.run_local_server(port=0)
+        else:
+            raise RuntimeError(
+                "Google Calendar credentials are missing or expired. "
+                "Run 'nstd setup' to authenticate interactively."
+            )
 
         with open(token_path, "w") as f:
             f.write(creds.to_json())
@@ -146,16 +157,30 @@ def event_date(event: dict) -> str:
 def mark_past_blocks(conn: sqlite3.Connection) -> int:
     """Mark calendar blocks with end_dt in the past as is_past = 1.
 
+    Uses proper datetime comparison to handle timezone offsets correctly.
+
     Returns:
         Number of blocks marked as past.
     """
-    now = datetime.now(UTC).isoformat()
-    cursor = conn.execute(
-        "UPDATE calendar_blocks SET is_past = 1 WHERE end_dt < ? AND is_past = 0",
-        (now,),
-    )
-    conn.commit()
-    return cursor.rowcount
+    now = datetime.now(UTC)
+    rows = conn.execute("SELECT id, end_dt FROM calendar_blocks WHERE is_past = 0").fetchall()
+
+    marked = 0
+    for row in rows:
+        try:
+            end = dtparser.isoparse(row["end_dt"])
+            # Ensure timezone-aware comparison
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=UTC)
+            if end < now:
+                conn.execute("UPDATE calendar_blocks SET is_past = 1 WHERE id = ?", (row["id"],))
+                marked += 1
+        except (ValueError, TypeError):
+            continue
+
+    if marked:
+        conn.commit()
+    return marked
 
 
 def detect_orphaned_blocks(conn: sqlite3.Connection) -> list[dict]:

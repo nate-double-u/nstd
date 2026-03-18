@@ -9,7 +9,6 @@ Spec references:
 Test cases from spec:
   - Calendar poll marks past blocks as is_past = 1
   - Orphaned block (task closed, block future) flagged
-  - Block recorded in calendar_blocks table with correct task_id
 """
 
 from __future__ import annotations
