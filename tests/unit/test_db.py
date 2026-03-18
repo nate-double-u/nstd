@@ -590,3 +590,152 @@ class TestCalendarBlocks:
         future = get_future_blocks_for_task(db, "gh:cncf/staff:1")
         assert len(future) == 1
         assert future[0]["gcal_event_id"] == "evt2"
+
+
+# --- Query helpers (moved from TUI) ---
+
+
+def _insert_sample_tasks(db):
+    """Insert sample tasks for query tests."""
+    from nstd.db import upsert_task
+
+    tasks = [
+        {
+            "id": "gh:cncf/staff:1",
+            "source": "github",
+            "source_id": "1",
+            "source_url": "https://github.com/cncf/staff/issues/1",
+            "title": "Alpha task",
+            "body": None,
+            "state": "open",
+            "assignee": "nate",
+            "priority": "high",
+            "size": None,
+            "estimate_hours": None,
+            "start_date": None,
+            "due_date": "2026-03-20",
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-15T00:00:00Z",
+        },
+        {
+            "id": "jira:CNCFSD-10",
+            "source": "jira",
+            "source_id": "CNCFSD-10",
+            "source_url": "https://jira.example.com/CNCFSD-10",
+            "title": "Beta task",
+            "body": None,
+            "state": "open",
+            "assignee": "nate",
+            "priority": "medium",
+            "size": None,
+            "estimate_hours": None,
+            "start_date": None,
+            "due_date": None,
+            "created_at": "2026-03-02T00:00:00Z",
+            "updated_at": "2026-03-16T00:00:00Z",
+        },
+        {
+            "id": "asana:555",
+            "source": "asana",
+            "source_id": "555",
+            "source_url": "https://app.asana.com/555",
+            "title": "Gamma task",
+            "body": None,
+            "state": "closed",
+            "assignee": "nate",
+            "priority": "low",
+            "size": None,
+            "estimate_hours": None,
+            "start_date": None,
+            "due_date": "2026-03-18",
+            "created_at": "2026-03-03T00:00:00Z",
+            "updated_at": "2026-03-17T00:00:00Z",
+        },
+    ]
+    for t in tasks:
+        upsert_task(db, t)
+
+
+class TestQueryTasks:
+    """Tests for query_tasks helper (moved from TUI)."""
+
+    def test_returns_only_open_tasks(self, db):
+        """query_tasks returns only open tasks by default."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        result = query_tasks(db)
+        assert len(result) == 2
+        assert all(t["state"] == "open" for t in result)
+
+    def test_filter_by_source(self, db):
+        """query_tasks filters by source."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        result = query_tasks(db, source_filter="github")
+        assert len(result) == 1
+        assert result[0]["source"] == "github"
+
+    def test_sort_by_due_date_nulls_last(self, db):
+        """query_tasks sorts by due_date with NULLs last."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        result = query_tasks(db, sort_by="due_date")
+        assert result[0]["due_date"] == "2026-03-20"
+        assert result[1]["due_date"] is None
+
+    def test_sort_by_title(self, db):
+        """query_tasks sorts by title."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        result = query_tasks(db, sort_by="title")
+        assert result[0]["title"] == "Alpha task"
+
+    def test_invalid_sort_column_raises(self, db):
+        """query_tasks rejects invalid sort columns."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        with pytest.raises(ValueError, match="Invalid sort column"):
+            query_tasks(db, sort_by="DROP TABLE tasks")
+
+    def test_default_sort_is_updated_at_desc(self, db):
+        """query_tasks defaults to updated_at DESC."""
+        from nstd.db import query_tasks
+
+        _insert_sample_tasks(db)
+        result = query_tasks(db)
+        assert result[0]["updated_at"] >= result[1]["updated_at"]
+
+
+class TestGetRecentSyncLogs:
+    """Tests for get_recent_sync_logs helper (moved from TUI)."""
+
+    def test_returns_recent_logs(self, db):
+        """get_recent_sync_logs returns entries most-recent first."""
+        from nstd.db import get_recent_sync_logs, start_sync_log
+
+        start_sync_log(db, source=None)
+        start_sync_log(db, source="github")
+        result = get_recent_sync_logs(db)
+        assert len(result) == 2
+        assert result[0]["source"] == "github"
+
+    def test_respects_limit(self, db):
+        """get_recent_sync_logs respects limit parameter."""
+        from nstd.db import get_recent_sync_logs, start_sync_log
+
+        for i in range(5):
+            start_sync_log(db, source=f"src-{i}")
+        result = get_recent_sync_logs(db, limit=3)
+        assert len(result) == 3
+
+    def test_empty_log(self, db):
+        """get_recent_sync_logs returns empty list when no logs exist."""
+        from nstd.db import get_recent_sync_logs
+
+        result = get_recent_sync_logs(db)
+        assert result == []

@@ -13,7 +13,7 @@ from typing import ClassVar
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
-from nstd.db import get_unresolved_conflicts
+from nstd.db import get_recent_sync_logs, get_unresolved_conflicts, query_tasks
 
 # --- Helpers (pure functions, easily testable) ---
 
@@ -93,48 +93,18 @@ def load_tasks(
 ) -> list[dict]:
     """Load tasks from DB for display.
 
-    Args:
-        conn: Database connection.
-        source_filter: If set, only return tasks from this source.
-        sort_by: Column to sort by. Must be one of the allowed sort columns.
-
-    Returns:
-        List of task dicts.
-
-    Raises:
-        ValueError: If sort_by is not an allowed column.
+    Delegates to nstd.db.query_tasks for data access.
     """
-    allowed_sort_columns = {"due_date", "priority", "updated_at", "created_at", "title", "source"}
-
-    query = "SELECT * FROM tasks WHERE state = 'open'"
-    params: list = []
-
-    if source_filter:
-        query += " AND source = ?"
-        params.append(source_filter)
-
-    if sort_by == "due_date":
-        # Tasks with due dates first (ascending), then nulls
-        query += " ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC"
-    elif sort_by:
-        if sort_by not in allowed_sort_columns:
-            msg = f"Invalid sort column: {sort_by}"
-            raise ValueError(msg)
-        query += f" ORDER BY {sort_by}"
-    else:
-        query += " ORDER BY updated_at DESC"
-
-    rows = conn.execute(query, params).fetchall()
-    return [dict(r) for r in rows]
+    return query_tasks(conn, source_filter=source_filter, sort_by=sort_by)
 
 
 def load_sync_log(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
     """Load recent sync log entries.
 
     §9.6: Last 20 sync entries, most recent first.
+    Delegates to nstd.db.get_recent_sync_logs for data access.
     """
-    rows = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
-    return [dict(r) for r in rows]
+    return get_recent_sync_logs(conn, limit=limit)
 
 
 def load_conflicts(conn: sqlite3.Connection) -> list[dict]:
