@@ -141,7 +141,7 @@ class TestStatusCommand:
 
         conn = get_connection(str(db_file))
         create_schema(conn)
-        log_id = start_sync_log(conn, source="all")
+        log_id = start_sync_log(conn, source=None)
         complete_sync_log(conn, log_id, records_fetched=10, records_updated=5)
         conn.close()
 
@@ -228,7 +228,7 @@ class TestLogsCommand:
 
         conn = get_connection(str(db_file))
         create_schema(conn)
-        log_id = start_sync_log(conn, source="all")
+        log_id = start_sync_log(conn, source=None)
         complete_sync_log(conn, log_id, records_fetched=15, records_updated=10)
         conn.close()
 

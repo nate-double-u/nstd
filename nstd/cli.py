@@ -23,8 +23,6 @@ from pathlib import Path
 
 import click
 
-from nstd.db import create_schema, get_connection
-
 _DEFAULT_CONFIG_DIR = Path.home() / ".config" / "nstd"
 _DEFAULT_DB_PATH = _DEFAULT_CONFIG_DIR / "nstd.db"
 
@@ -40,20 +38,6 @@ def _get_version() -> str:
         return version("nstd")
     except PackageNotFoundError:
         return "0.1.0-dev"
-
-
-def _safe_get_connection(db_path: str) -> sqlite3.Connection | None:
-    """Open a DB connection, returning None if the DB doesn't exist.
-
-    Returns None if the parent directory or the DB file itself doesn't exist,
-    preventing read-only CLI commands from creating empty databases.
-    """
-    db_file = Path(db_path)
-    if not db_file.parent.exists() or not db_file.exists():
-        return None
-    conn = get_connection(db_path)
-    create_schema(conn)
-    return conn
 
 
 def _safe_get_readonly_connection(db_path: str) -> sqlite3.Connection | None:
@@ -148,7 +132,10 @@ def config_cmd() -> None:
         return  # pragma: no cover
 
     cmd = [*shlex.split(editor), str(config_path)]
-    result = subprocess.run(cmd, check=False)  # pragma: no cover
+    try:  # pragma: no cover
+        result = subprocess.run(cmd, check=False)  # pragma: no cover
+    except FileNotFoundError:  # pragma: no cover
+        raise click.ClickException(f"Editor not found: {editor}") from None  # pragma: no cover
     if result.returncode != 0:  # pragma: no cover
         raise click.ClickException(f"Editor exited with code {result.returncode}")
 
