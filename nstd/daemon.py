@@ -13,11 +13,11 @@ import logging
 import re
 import sqlite3
 
+from nstd.config import NstdConfig, get_credential
 from nstd.db import (
     complete_sync_log,
     error_sync_log,
     start_sync_log,
-    upsert_task,
 )
 
 logger = logging.getLogger("nstd")
@@ -35,55 +35,108 @@ _SENSITIVE_PATTERNS = [
 ]
 
 
+def _sanitize_str(text: str) -> str:
+    """Apply all sensitive patterns to a string."""
+    for pattern in _SENSITIVE_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
+
+
 class LogSanitizer(logging.Filter):
     """Logging filter that redacts sensitive values from log output.
 
     §16: API tokens must never appear in log output.
+    Sanitizes record.msg, record.args, and exception text.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Sanitize the log message, always returning True to keep it."""
         if isinstance(record.msg, str):
-            for pattern in _SENSITIVE_PATTERNS:
-                record.msg = pattern.sub("[REDACTED]", record.msg)
+            record.msg = _sanitize_str(record.msg)
+
+        # Sanitize args (logger.info("token=%s", token))
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: _sanitize_str(str(v)) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+            elif isinstance(record.args, tuple):
+                record.args = tuple(
+                    _sanitize_str(str(a)) if isinstance(a, str) else a for a in record.args
+                )
+
+        # Sanitize exception text if present
+        if record.exc_text:
+            record.exc_text = _sanitize_str(record.exc_text)
+
         return True
 
 
-def _sync_github(conn: sqlite3.Connection, config) -> list[dict]:
-    """Sync tasks from GitHub. Thin wrapper for error isolation.
+def _sync_github(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+    """Sync tasks from GitHub using the real sync API.
 
-    This calls the actual GitHub sync engine. The implementation
-    imports and calls sync_github() from nstd.sync.github.
+    Args:
+        conn: Database connection.
+        config: Full NstdConfig.
+
+    Returns:
+        Stats dict with 'fetched' and 'updated' counts.
     """
     from nstd.sync.github import sync_github
 
-    return sync_github(config)  # pragma: no cover
+    token = get_credential("nstd-github", config.user.github_username)
+    if not token:
+        raise RuntimeError("GitHub token not found in Keychain")
+    return sync_github(conn, config.user, config.github, token)  # pragma: no cover
 
 
-def _sync_jira(conn: sqlite3.Connection, config) -> list[dict]:
-    """Sync tasks from Jira. Thin wrapper for error isolation."""
+def _sync_jira(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+    """Sync tasks from Jira using the real sync API.
+
+    Args:
+        conn: Database connection.
+        config: Full NstdConfig.
+
+    Returns:
+        Stats dict with 'fetched', 'updated', and 'errors' keys.
+    """
     from nstd.sync.jira import sync_jira
 
-    return sync_jira(config)  # pragma: no cover
+    token = get_credential("nstd-jira", config.jira.username)
+    if not token:
+        raise RuntimeError("Jira token not found in Keychain")
+    return sync_jira(conn, config.jira, token)  # pragma: no cover
 
 
-def _sync_asana(conn: sqlite3.Connection, config) -> list[dict]:
-    """Sync tasks from Asana. Thin wrapper for error isolation."""
+def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+    """Sync tasks from Asana using the real sync API.
+
+    Args:
+        conn: Database connection.
+        config: Full NstdConfig.
+
+    Returns:
+        Stats dict with 'fetched', 'updated', and 'errors' keys.
+    """
     from nstd.sync.asana import sync_asana
 
-    return sync_asana(config)  # pragma: no cover
+    token = get_credential("nstd-asana", "default")
+    if not token:
+        raise RuntimeError("Asana token not found in Keychain")
+    return sync_asana(conn, config.asana, token)  # pragma: no cover
 
 
-def run_task_sync(conn: sqlite3.Connection, config) -> dict:
+def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     """Run a full task sync cycle.
 
-    Calls all source sync functions in order. If any source fails,
+    Calls all source sync functions in order. Each sync function handles
+    its own upserts and returns a stats dict. If any source fails,
     the error is logged and the remaining sources still run.
 
     Per spec §6.1 steps 1-10:
-    1-5. Fetch from all sources
-    6. Upsert all records
-    7-8. Write-back and conflict detection (handled by callers after upsert)
+    1-6. Fetch from all sources + upsert (handled by each sync_fn)
+    7-8. Write-back and conflict detection (handled by callers after sync)
     9. Scheduling nudge evaluation (handled by callers)
     10. Write sync log entry
 
@@ -92,11 +145,12 @@ def run_task_sync(conn: sqlite3.Connection, config) -> dict:
         config: NstdConfig object.
 
     Returns:
-        Dict with keys: tasks_synced (int), errors (list[str]),
-                        log_id (int)
+        Dict with keys: total_fetched (int), total_updated (int),
+                        errors (list[str]), log_id (int)
     """
     log_id = start_sync_log(conn, source="all")
-    all_tasks = []
+    total_fetched = 0
+    total_updated = 0
     errors = []
 
     # Sync each source with error isolation
@@ -108,20 +162,17 @@ def run_task_sync(conn: sqlite3.Connection, config) -> dict:
 
     for source_name, sync_fn in sync_sources:
         try:
-            tasks = sync_fn(conn, config)
-            all_tasks.extend(tasks)
-            logger.info("Synced %d tasks from %s", len(tasks), source_name)
+            stats = sync_fn(conn, config)
+            total_fetched += stats.get("fetched", 0)
+            total_updated += stats.get("updated", 0)
+            logger.info(
+                "Synced %d/%d tasks from %s",
+                stats.get("updated", 0),
+                stats.get("fetched", 0),
+                source_name,
+            )
         except Exception:
             error_msg = f"{source_name} sync failed"
-            errors.append(error_msg)
-            logger.exception(error_msg)
-
-    # Upsert all successfully fetched tasks
-    for task in all_tasks:
-        try:
-            upsert_task(conn, task)
-        except Exception:
-            error_msg = f"Failed to upsert task {task.get('id', 'unknown')}"
             errors.append(error_msg)
             logger.exception(error_msg)
 
@@ -130,11 +181,12 @@ def run_task_sync(conn: sqlite3.Connection, config) -> dict:
         error_sync_log(conn, log_id, errors)
     else:
         complete_sync_log(
-            conn, log_id, records_fetched=len(all_tasks), records_updated=len(all_tasks)
+            conn, log_id, records_fetched=total_fetched, records_updated=total_updated
         )
 
     return {
-        "tasks_synced": len(all_tasks),
+        "total_fetched": total_fetched,
+        "total_updated": total_updated,
         "errors": errors,
         "log_id": log_id,
     }
