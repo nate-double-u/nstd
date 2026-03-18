@@ -126,6 +126,11 @@ def write_config_toml(
     return config_path
 
 
+def _escape_toml_string(value: str) -> str:
+    """Escape a string for TOML double-quoted format."""
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
 def _dict_to_toml(data: dict, prefix: str = "") -> str:
     """Convert a nested dict to TOML string.
 
@@ -142,12 +147,12 @@ def _dict_to_toml(data: dict, prefix: str = "") -> str:
         if isinstance(value, dict):
             sections.append((key, value))
         elif isinstance(value, list):
-            items = ", ".join(f'"{v}"' for v in value)
+            items = ", ".join(f'"{_escape_toml_string(str(v))}"' for v in value)
             lines.append(f"{key} = [{items}]")
         elif isinstance(value, bool):
             lines.append(f"{key} = {'true' if value else 'false'}")
         elif isinstance(value, str):
-            lines.append(f'{key} = "{value}"')
+            lines.append(f'{key} = "{_escape_toml_string(value)}"')
         elif isinstance(value, int | float):
             lines.append(f"{key} = {value}")
         else:

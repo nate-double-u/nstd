@@ -216,6 +216,27 @@ class TestWriteConfigToml:
         with pytest.raises(TypeError, match="Unsupported TOML value type"):
             write_config_toml(config, config_dir=tmp_path)
 
+    def test_escapes_quotes_and_backslashes(self, tmp_path):
+        """Strings with quotes and backslashes should be properly escaped."""
+        import tomllib
+
+        from nstd.setup import write_config_toml
+
+        config = {
+            "path": "C:\\Users\\nate\\config",
+            "greeting": 'He said "hello"',
+            "tags": ['value "with" quotes', "back\\slash"],
+        }
+        write_config_toml(config, config_dir=tmp_path)
+
+        with open(tmp_path / "config.toml", "rb") as f:
+            parsed = tomllib.load(f)
+
+        assert parsed["path"] == "C:\\Users\\nate\\config"
+        assert parsed["greeting"] == 'He said "hello"'
+        assert parsed["tags"][0] == 'value "with" quotes'
+        assert parsed["tags"][1] == "back\\slash"
+
 
 # --- Plist generation tests ---
 
