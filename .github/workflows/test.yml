@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
 
       - name: Ruff check (lint)
         run: ruff check .

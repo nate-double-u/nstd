@@ -70,4 +70,4 @@ class CalendarEventFactory(factory.Factory):
     start = factory.LazyFunction(lambda: {"dateTime": "2026-03-20T09:00:00-07:00"})
     end = factory.LazyFunction(lambda: {"dateTime": "2026-03-20T11:00:00-07:00"})
     description = ""
-    color_id = None
+    colorId = None  # noqa: N815 — matches Google Calendar API field name
