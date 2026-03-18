@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 from textual.app import App
+from textual.widgets import TabbedContent
 
 from nstd.db import create_schema, get_connection, upsert_task
 
@@ -334,3 +335,66 @@ class TestNstdApp:
 
         app = NstdApp(db_path=":memory:")
         assert app.title == "nstd"
+
+    @pytest.mark.asyncio
+    async def test_action_tab_tasks(self):
+        """Tab action should switch to tasks tab."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("2")  # switch away from tasks
+            await pilot.press("1")  # back to tasks
+            tc = app.query_one(TabbedContent)
+            assert tc.active == "tasks"
+
+    @pytest.mark.asyncio
+    async def test_action_tab_conflicts(self):
+        """Tab action should switch to conflicts tab."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("2")
+            tc = app.query_one(TabbedContent)
+            assert tc.active == "conflicts"
+
+    @pytest.mark.asyncio
+    async def test_action_tab_calendar(self):
+        """Tab action should switch to calendar tab."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("3")
+            tc = app.query_one(TabbedContent)
+            assert tc.active == "calendar"
+
+    @pytest.mark.asyncio
+    async def test_action_tab_log(self):
+        """Tab action should switch to log tab."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("4")
+            tc = app.query_one(TabbedContent)
+            assert tc.active == "log"
+
+    @pytest.mark.asyncio
+    async def test_action_sync_does_not_crash(self):
+        """Sync action should not raise (stub)."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("s")
+
+    @pytest.mark.asyncio
+    async def test_action_help_does_not_crash(self):
+        """Help action should not raise (stub)."""
+        from nstd.tui.app import NstdApp
+
+        app = NstdApp(db_path=":memory:")
+        async with app.run_test() as pilot:
+            await pilot.press("question_mark")

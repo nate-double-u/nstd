@@ -450,3 +450,51 @@ class TestLogSanitizer:
         )
         sanitizer.filter(record)
         assert record.args == (42, 1.3)
+
+
+class TestSyncFunctionIntegration:
+    """Tests for _sync_github, _sync_jira, _sync_asana calling real sync functions."""
+
+    @patch("nstd.daemon.get_credential", return_value="fake-token")
+    @patch("nstd.sync.github.sync_github", return_value={"fetched": 5, "updated": 3})
+    def test_sync_github_calls_sync_function(self, mock_sync, mock_cred, conn):
+        """_sync_github should call sync_github with correct args."""
+        from nstd.daemon import _sync_github
+
+        config = MagicMock()
+        result = _sync_github(conn, config)
+        mock_sync.assert_called_once_with(conn, config.user, config.github, "fake-token")
+        assert result["fetched"] == 5
+
+    @patch("nstd.daemon.get_credential", return_value="fake-token")
+    @patch("nstd.sync.jira.sync_jira", return_value={"fetched": 3, "updated": 1, "errors": []})
+    def test_sync_jira_calls_sync_function(self, mock_sync, mock_cred, conn):
+        """_sync_jira should call sync_jira with correct args."""
+        from nstd.daemon import _sync_jira
+
+        config = MagicMock()
+        result = _sync_jira(conn, config)
+        mock_sync.assert_called_once_with(conn, config.jira, "fake-token")
+        assert result["fetched"] == 3
+
+    @patch("nstd.daemon.get_credential", return_value="fake-token")
+    @patch("nstd.sync.asana.sync_asana", return_value={"fetched": 2, "updated": 1, "errors": []})
+    def test_sync_asana_calls_sync_function(self, mock_sync, mock_cred, conn):
+        """_sync_asana should call sync_asana with correct args."""
+        from nstd.daemon import _sync_asana
+
+        config = MagicMock()
+        result = _sync_asana(conn, config)
+        mock_sync.assert_called_once_with(conn, config.asana, "fake-token")
+        assert result["fetched"] == 2
+
+    @patch("nstd.daemon.get_credential", return_value="fake-token")
+    @patch("nstd.calendar.gcal.poll_calendars")
+    def test_calendar_poll_default_poll_fn(self, mock_poll, mock_cred, conn):
+        """run_calendar_poll with no poll_fn should use poll_calendars."""
+        mock_poll.return_value = {"events": 5}
+        config = MagicMock()
+        service = MagicMock()
+
+        result = run_calendar_poll(conn, config, service)
+        mock_poll.assert_called_once()

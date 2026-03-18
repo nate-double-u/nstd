@@ -111,7 +111,7 @@ def write_config_toml(
         FileExistsError: If config exists and force is False.
     """
     if config_dir is None:
-        config_dir = Path.home() / ".config" / "nstd"  # pragma: no cover
+        config_dir = Path.home() / ".config" / "nstd"
 
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "config.toml"
@@ -231,7 +231,7 @@ def write_plist(
         Path to the written plist file.
     """
     if launch_agents_dir is None:
-        launch_agents_dir = Path.home() / "Library" / "LaunchAgents"  # pragma: no cover
+        launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
 
     launch_agents_dir.mkdir(parents=True, exist_ok=True)
     plist_path = launch_agents_dir / "dev.nstd.sync.plist"
