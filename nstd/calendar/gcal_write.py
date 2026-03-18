@@ -9,6 +9,9 @@ Spec references: §8.3 (time block format), §8.4 (block lifecycle)
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime
+
+from dateutil import parser as dtparser
 
 from nstd.db import get_future_blocks_for_task, insert_calendar_block
 
@@ -21,6 +24,21 @@ PRIORITY_COLORS = {
     None: "8",  # Graphite (no priority)
     "completed": "8",  # Graphite (completed)
 }
+
+
+def _is_truly_future(block: dict) -> bool:
+    """Check if a block's end_dt is actually in the future.
+
+    Provides a runtime safety check beyond the is_past DB flag,
+    in case is_past hasn't been updated yet.
+    """
+    try:
+        end = dtparser.isoparse(block["end_dt"])
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=UTC)
+        return end > datetime.now(UTC)
+    except (ValueError, TypeError, KeyError):
+        return False
 
 
 def _build_description(task: dict) -> str:
@@ -107,7 +125,18 @@ def create_calendar_block(
 
     Returns:
         Dict with block info including gcal_event_id and task_id.
+
+    Raises:
+        ValueError: If the task is not from GitHub (§8.3: only GitHub Issues
+                   get calendar blocks).
     """
+    # §8.3: Only GitHub Issues get calendar blocks
+    if task.get("source") != "github":
+        raise ValueError(
+            f"Only GitHub tasks can have calendar blocks. "
+            f"Task '{task.get('id')}' has source '{task.get('source')}'."
+        )
+
     event_body = build_event_body(task, start_dt, end_dt)
 
     created_event = service.events().insert(calendarId=calendar_id, body=event_body).execute()
@@ -156,6 +185,10 @@ def mark_task_blocks_completed(
     updated = 0
 
     for block in future_blocks:
+        # Runtime safety: skip blocks that are actually past even if is_past=0
+        if not _is_truly_future(block):
+            continue
+
         gcal_event_id = block["gcal_event_id"]
 
         # Fetch current event from GCal
@@ -205,6 +238,10 @@ def update_block_description(
     updated = 0
 
     for block in future_blocks:
+        # Runtime safety: skip blocks that are actually past even if is_past=0
+        if not _is_truly_future(block):
+            continue
+
         gcal_event_id = block["gcal_event_id"]
 
         event = service.events().get(calendarId=calendar_id, eventId=gcal_event_id).execute()

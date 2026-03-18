@@ -422,3 +422,76 @@ class TestUpdateBlockDescription:
         )
 
         mock_service.events().get.assert_not_called()
+
+
+# --- GitHub-only guard tests ---
+
+
+class TestGitHubOnlyGuard:
+    """§8.3: Only GitHub Issues get calendar blocks."""
+
+    def test_jira_task_raises_error(self, conn):
+        """Jira tasks should not get calendar blocks."""
+        task = _make_task("jira:CNCFSD-123")
+        task["source"] = "jira"
+        upsert_task(conn, task)
+
+        mock_service = MagicMock()
+        with pytest.raises(ValueError, match="Only GitHub tasks"):
+            create_calendar_block(
+                conn,
+                service=mock_service,
+                calendar_id="cal_nstd",
+                task=task,
+                start_dt="2026-03-20T09:00:00-07:00",
+                end_dt="2026-03-20T11:00:00-07:00",
+                duration_hours=2.0,
+            )
+
+    def test_asana_task_raises_error(self, conn):
+        """Asana tasks should not get calendar blocks."""
+        task = _make_task("asana:12345")
+        task["source"] = "asana"
+        upsert_task(conn, task)
+
+        mock_service = MagicMock()
+        with pytest.raises(ValueError, match="Only GitHub tasks"):
+            create_calendar_block(
+                conn,
+                service=mock_service,
+                calendar_id="cal_nstd",
+                task=task,
+                start_dt="2026-03-20T09:00:00-07:00",
+                end_dt="2026-03-20T11:00:00-07:00",
+                duration_hours=2.0,
+            )
+
+
+# --- Past block with is_past=0 tests ---
+
+
+class TestPastBlockWithoutFlag:
+    """Copilot review: past block with is_past=0 should still be skipped."""
+
+    def test_past_block_is_past_zero_not_modified(self, conn):
+        """A block whose end_dt is past but is_past=0 should not be updated."""
+        task = _make_task("gh:cncf/staff:600")
+        upsert_task(conn, task)
+
+        now = datetime.now(UTC)
+        past_dt = (now - timedelta(hours=4)).isoformat()
+        past_end = (now - timedelta(hours=3)).isoformat()
+        # Insert with default is_past=0, even though it's in the past
+        insert_calendar_block(conn, "gh:cncf/staff:600", "evt_stale", past_dt, past_end, 1.0)
+
+        mock_service = MagicMock()
+
+        mark_task_blocks_completed(
+            conn,
+            service=mock_service,
+            calendar_id="cal_nstd",
+            task_id="gh:cncf/staff:600",
+        )
+
+        # Should not call GCal API for this actually-past block
+        mock_service.events().get().execute.assert_not_called()
