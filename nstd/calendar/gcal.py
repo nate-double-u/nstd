@@ -19,7 +19,7 @@ def _build_service(credentials_path: str, interactive: bool = False):  # pragma:
 
     This is a thin wrapper around the Google API client library.
     Excluded from unit test coverage as it depends on real Google OAuth
-    infrastructure. Will be exercised by integration tests.
+    infrastructure; requires valid credentials and network access.
 
     Args:
         credentials_path: Path to credentials directory.
@@ -189,10 +189,11 @@ def mark_past_blocks(conn: sqlite3.Connection) -> int:
 
 
 def detect_orphaned_blocks(conn: sqlite3.Connection) -> list[dict]:
-    """Detect orphaned blocks: future blocks for closed/done tasks.
+    """Detect orphaned blocks: future blocks for closed/done/missing tasks.
 
     An orphaned block is a future (is_past = 0) calendar block whose
-    associated task has state 'closed' or 'done'.
+    associated task has state 'closed' or 'done', or whose task no longer
+    exists in the database.
 
     Returns:
         List of orphaned block dicts.
@@ -200,9 +201,9 @@ def detect_orphaned_blocks(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         """
         SELECT cb.* FROM calendar_blocks cb
-        JOIN tasks t ON cb.task_id = t.id
+        LEFT JOIN tasks t ON cb.task_id = t.id
         WHERE cb.is_past = 0
-          AND t.state IN ('closed', 'done')
+          AND (t.id IS NULL OR t.state IN ('closed', 'done'))
         ORDER BY cb.start_dt
         """
     ).fetchall()

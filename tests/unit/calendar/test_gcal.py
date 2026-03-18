@@ -337,6 +337,27 @@ class TestDetectOrphanedBlocks:
         orphans = detect_orphaned_blocks(conn)
         assert len(orphans) == 3
 
+    def test_missing_task_block_is_orphaned(self, conn):
+        """A future block referencing a non-existent task is orphaned."""
+        now = datetime.now(UTC)
+        future_dt = (now + timedelta(hours=1)).isoformat()
+        future_end = (now + timedelta(hours=3)).isoformat()
+        # Insert block with a task_id that doesn't exist in tasks table
+        # Need to bypass FK check — disable temporarily
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute(
+            "INSERT INTO calendar_blocks "
+            "(task_id, gcal_event_id, start_dt, end_dt, duration_hours, created_at)"
+            " VALUES (?, ?, ?, ?, ?, datetime('now'))",
+            ("gh:cncf/staff:999", "evt_ghost", future_dt, future_end, 2.0),
+        )
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        orphans = detect_orphaned_blocks(conn)
+        assert len(orphans) == 1
+        assert orphans[0]["task_id"] == "gh:cncf/staff:999"
+
 
 # --- Poll orchestration tests ---
 
