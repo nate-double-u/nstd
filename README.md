@@ -81,5 +81,5 @@ Single daemon process with two internal loops:
 
 ## License
 
-Code: [Apache License 2.0](LICENSE)
-Documentation: [Creative Commons Attribution 4.0 International](LICENSE-docs)
+Code: [Apache License 2.0](LICENSE-APACHE-2.0)
+Documentation: [Creative Commons Attribution 4.0 International](LICENSE-CC-BY-4.0)

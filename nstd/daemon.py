@@ -88,7 +88,7 @@ def _sync_github(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     token = get_credential("nstd-github", config.user.github_username)
     if not token:
         raise RuntimeError("GitHub token not found in Keychain")
-    return sync_github(conn, config.user, config.github, token)  # pragma: no cover
+    return sync_github(conn, config.user, config.github, token)
 
 
 def _sync_jira(conn: sqlite3.Connection, config: NstdConfig) -> dict:
@@ -106,7 +106,7 @@ def _sync_jira(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     token = get_credential("nstd-jira", config.jira.username)
     if not token:
         raise RuntimeError("Jira token not found in Keychain")
-    return sync_jira(conn, config.jira, token)  # pragma: no cover
+    return sync_jira(conn, config.jira, token)
 
 
 def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
@@ -121,10 +121,10 @@ def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     """
     from nstd.sync.asana import sync_asana
 
-    token = get_credential("nstd-asana", "default")
+    token = get_credential("nstd-asana", config.user.github_username)
     if not token:
         raise RuntimeError("Asana token not found in Keychain")
-    return sync_asana(conn, config.asana, token)  # pragma: no cover
+    return sync_asana(conn, config.asana, token)
 
 
 def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
@@ -216,7 +216,7 @@ def run_calendar_poll(conn: sqlite3.Connection, config, service, poll_fn=None) -
     errors = []
 
     try:
-        if poll_fn is None:  # pragma: no cover
+        if poll_fn is None:
             from nstd.calendar.gcal import poll_calendars
 
             poll_fn = poll_calendars

@@ -245,6 +245,19 @@ class TestWriteConfigToml:
         with pytest.raises(TypeError, match="Unsupported list element type"):
             write_config_toml(config, config_dir=tmp_path)
 
+    def test_default_config_dir_uses_home(self, tmp_path):
+        """write_config_toml without config_dir uses ~/.config/nstd."""
+        from nstd.setup import generate_config_dict, write_config_toml
+
+        answers = _make_answers()
+        config = generate_config_dict(answers)
+        with patch("nstd.setup.Path.home", return_value=tmp_path):
+            path = write_config_toml(config)
+
+        expected = tmp_path / ".config" / "nstd" / "config.toml"
+        assert path == expected
+        assert expected.exists()
+
 
 # --- Plist generation tests ---
 
@@ -309,6 +322,18 @@ class TestGeneratePlist:
         plist = generate_plist(venv_path="/opt/nstd/.venv")
         # Should not raise
         ET.fromstring(plist)
+
+    def test_default_launch_agents_dir_uses_home(self, tmp_path):
+        """write_plist without launch_agents_dir uses ~/Library/LaunchAgents."""
+        from nstd.setup import generate_plist, write_plist
+
+        plist_content = generate_plist(venv_path="/opt/nstd/.venv")
+        with patch("nstd.setup.Path.home", return_value=tmp_path):
+            path = write_plist(plist_content)
+
+        expected = tmp_path / "Library" / "LaunchAgents" / "dev.nstd.sync.plist"
+        assert path == expected
+        assert expected.exists()
 
 
 # --- Credential verification tests ---

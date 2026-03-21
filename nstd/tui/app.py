@@ -162,24 +162,24 @@ class NstdApp(App):
 
     def action_tab_tasks(self) -> None:
         """Switch to Tasks tab."""
-        self.query_one(TabbedContent).active = "tasks"  # pragma: no cover
+        self.query_one(TabbedContent).active = "tasks"
 
     def action_tab_conflicts(self) -> None:
         """Switch to Conflicts tab."""
-        self.query_one(TabbedContent).active = "conflicts"  # pragma: no cover
+        self.query_one(TabbedContent).active = "conflicts"
 
     def action_tab_calendar(self) -> None:
         """Switch to Calendar tab."""
-        self.query_one(TabbedContent).active = "calendar"  # pragma: no cover
+        self.query_one(TabbedContent).active = "calendar"
 
     def action_tab_log(self) -> None:
         """Switch to Log tab."""
-        self.query_one(TabbedContent).active = "log"  # pragma: no cover
+        self.query_one(TabbedContent).active = "log"
 
     def action_sync(self) -> None:
         """Trigger a manual sync."""
-        pass  # pragma: no cover
+        pass
 
     def action_help(self) -> None:
         """Show help overlay."""
-        pass  # pragma: no cover
+        pass
