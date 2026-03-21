@@ -216,10 +216,11 @@ def poll_calendars(
     nstd_calendar_id: str,
     observe_calendar_ids: list[str],
     days_ahead: int = 14,
+    dry_run: bool = False,
 ) -> dict:
     """Run a full calendar poll cycle.
 
-    1. Mark past blocks in the database
+    1. Mark past blocks in the database (skipped in dry-run)
     2. Fetch events from NSTD Planning calendar
     3. Fetch events from all observed calendars
     4. Detect orphaned blocks
@@ -230,13 +231,18 @@ def poll_calendars(
         nstd_calendar_id: Calendar ID for the NSTD Planning calendar.
         observe_calendar_ids: List of calendar IDs to observe.
         days_ahead: Number of days ahead to look.
+        dry_run: If True, suppress DB writes and print [DRY-RUN] lines.
 
     Returns:
         Dict with keys: nstd_events, observed_events, orphaned_blocks,
                         past_blocks_marked
     """
-    # Step 1: Mark past blocks
-    past_count = mark_past_blocks(conn)
+    # Step 1: Mark past blocks (suppressed in dry-run per §6.7)
+    if dry_run:
+        print("[DRY-RUN] Would mark past calendar blocks")
+        past_count = 0
+    else:
+        past_count = mark_past_blocks(conn)
 
     # Step 2: Fetch NSTD Planning events
     nstd_events = fetch_calendar_events(service, nstd_calendar_id, days_ahead)

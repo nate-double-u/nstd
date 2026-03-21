@@ -73,12 +73,13 @@ class LogSanitizer(logging.Filter):
         return True
 
 
-def _sync_github(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+def _sync_github(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = False) -> dict:
     """Sync tasks from GitHub using the real sync API.
 
     Args:
         conn: Database connection.
         config: Full NstdConfig.
+        dry_run: If True, suppress all DB writes.
 
     Returns:
         Stats dict with 'fetched' and 'updated' counts.
@@ -88,15 +89,16 @@ def _sync_github(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     token = get_credential("nstd-github", config.user.github_username)
     if not token:
         raise RuntimeError("GitHub token not found in Keychain")
-    return sync_github(conn, config.user, config.github, token)
+    return sync_github(conn, config.user, config.github, token, dry_run=dry_run)
 
 
-def _sync_jira(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+def _sync_jira(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = False) -> dict:
     """Sync tasks from Jira using the real sync API.
 
     Args:
         conn: Database connection.
         config: Full NstdConfig.
+        dry_run: If True, suppress all DB writes.
 
     Returns:
         Stats dict with 'fetched', 'updated', and 'errors' keys.
@@ -106,15 +108,16 @@ def _sync_jira(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     token = get_credential("nstd-jira", config.jira.username)
     if not token:
         raise RuntimeError("Jira token not found in Keychain")
-    return sync_jira(conn, config.jira, token)
+    return sync_jira(conn, config.jira, token, dry_run=dry_run)
 
 
-def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+def _sync_asana(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = False) -> dict:
     """Sync tasks from Asana using the real sync API.
 
     Args:
         conn: Database connection.
         config: Full NstdConfig.
+        dry_run: If True, suppress all DB writes.
 
     Returns:
         Stats dict with 'fetched', 'updated', and 'errors' keys.
@@ -124,10 +127,10 @@ def _sync_asana(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     token = get_credential("nstd-asana", config.user.github_username)
     if not token:
         raise RuntimeError("Asana token not found in Keychain")
-    return sync_asana(conn, config.asana, token)
+    return sync_asana(conn, config.asana, token, dry_run=dry_run)
 
 
-def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
+def run_task_sync(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = False) -> dict:
     """Run a full task sync cycle.
 
     Calls all source sync functions in order. Each sync function handles
@@ -140,15 +143,20 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     9. Scheduling nudge evaluation (handled by callers)
     10. Write sync log entry
 
+    In dry-run mode (§6.7): steps 6-10 are suppressed. No sync_log entry
+    is created; [DRY-RUN] lines are printed instead of DB/API writes.
+
     Args:
         conn: Database connection.
         config: NstdConfig object.
+        dry_run: If True, suppress all writes (DB and external APIs).
 
     Returns:
         Dict with keys: total_fetched (int), total_updated (int),
-                        errors (list[str]), log_id (int)
+                        errors (list[str]), log_id (int | None).
+                        log_id is None in dry-run mode (no sync_log entry created).
     """
-    log_id = start_sync_log(conn, source=None)
+    log_id = None if dry_run else start_sync_log(conn, source=None)
     total_fetched = 0
     total_updated = 0
     errors = []
@@ -162,7 +170,7 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
 
     for source_name, sync_fn in sync_sources:
         try:
-            stats = sync_fn(conn, config)
+            stats = sync_fn(conn, config, dry_run)
             total_fetched += stats.get("fetched", 0)
             total_updated += stats.get("updated", 0)
             # Aggregate per-source errors from stats dict
@@ -179,13 +187,14 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
             errors.append(error_msg)
             logger.exception(error_msg)
 
-    # Complete sync log
-    if errors:
-        error_sync_log(conn, log_id, errors)
-    else:
-        complete_sync_log(
-            conn, log_id, records_fetched=total_fetched, records_updated=total_updated
-        )
+    # Complete sync log (skipped in dry-run per §6.7)
+    if not dry_run:
+        if errors:
+            error_sync_log(conn, log_id, errors)
+        else:
+            complete_sync_log(
+                conn, log_id, records_fetched=total_fetched, records_updated=total_updated
+            )
 
     return {
         "total_fetched": total_fetched,
@@ -195,7 +204,9 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig) -> dict:
     }
 
 
-def run_calendar_poll(conn: sqlite3.Connection, config, service, poll_fn=None) -> dict:
+def run_calendar_poll(
+    conn: sqlite3.Connection, config, service, poll_fn=None, dry_run: bool = False
+) -> dict:
     """Run a calendar poll cycle.
 
     Per spec §6.1 Loop 2:
@@ -204,11 +215,15 @@ def run_calendar_poll(conn: sqlite3.Connection, config, service, poll_fn=None) -
     3. Detect orphaned blocks
     4. Re-evaluate scheduling nudges for affected days
 
+    In dry-run mode (§6.7): step 1 executes normally; steps 2-4 are
+    suppressed with [DRY-RUN] output only.
+
     Args:
         conn: Database connection.
         config: NstdConfig object.
         service: Google Calendar API service object.
         poll_fn: Optional callable override for poll_calendars (for testing).
+        dry_run: If True, suppress all writes and print [DRY-RUN] lines.
 
     Returns:
         Dict with poll results and any errors.
@@ -226,6 +241,7 @@ def run_calendar_poll(conn: sqlite3.Connection, config, service, poll_fn=None) -
             service=service,
             nstd_calendar_id=config.google_calendar.calendar_id,
             observe_calendar_ids=config.google_calendar.observe_calendars,
+            dry_run=dry_run,
         )
         return {**result, "errors": errors}
     except Exception:

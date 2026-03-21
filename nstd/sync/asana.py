@@ -108,6 +108,7 @@ def sync_asana(
     conn: sqlite3.Connection,
     config: AsanaConfig,
     token: str,
+    dry_run: bool = False,
 ) -> dict:
     """Run Asana sync: fetch assigned + project tasks, deduplicate, upsert.
 
@@ -115,6 +116,7 @@ def sync_asana(
         conn: Database connection.
         config: Asana configuration.
         token: Asana PAT.
+        dry_run: If True, suppress all DB writes and print [DRY-RUN] lines.
 
     Returns:
         Stats dict with 'fetched', 'updated', and 'errors' keys.
@@ -150,7 +152,13 @@ def sync_asana(
 
     for asana_task in all_tasks:
         task = asana_task_to_task(asana_task)
-        upsert_task(conn, task)
+        if dry_run:
+            print(
+                f"[DRY-RUN] Would upsert task: {task['id']} "
+                f'"{task["title"]}" (status: {task["state"]})'
+            )
+        else:
+            upsert_task(conn, task)
         stats["updated"] += 1
 
     return stats

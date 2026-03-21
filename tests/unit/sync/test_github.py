@@ -400,3 +400,91 @@ class TestGitHubSync:
 
         links = db.execute("SELECT * FROM task_links").fetchall()
         assert len(links) == 0
+
+
+class TestSyncGithubDryRun:
+    """§6.7: sync_github dry-run mode suppresses all DB writes."""
+
+    @patch("nstd.sync.github._fetch_issues_rest")
+    def test_dry_run_skips_upsert(self, mock_fetch, db, github_config):
+        """dry_run=True must not call upsert_task."""
+        from nstd.sync.github import sync_github
+
+        mock_fetch.return_value = [
+            {
+                "number": 500,
+                "title": "Dry run issue",
+                "body": "No jira link",
+                "state": "open",
+                "html_url": "https://github.com/cncf/staff/issues/500",
+                "assignees": [{"login": "nate-double-u"}],
+                "labels": [],
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        ]
+
+        stats = sync_github(
+            db, github_config["user"], github_config["github"], token="ghp_fake", dry_run=True
+        )
+
+        rows = db.execute("SELECT * FROM tasks").fetchall()
+        assert len(rows) == 0
+        assert stats["fetched"] == 1
+        assert stats["updated"] == 1
+
+    @patch("nstd.sync.github._fetch_issues_rest")
+    def test_dry_run_prints_dry_run_line(self, mock_fetch, db, github_config, capsys):
+        """dry_run=True must print [DRY-RUN] lines to stdout."""
+        from nstd.sync.github import sync_github
+
+        mock_fetch.return_value = [
+            {
+                "number": 501,
+                "title": "Preview task",
+                "body": "",
+                "state": "open",
+                "html_url": "https://github.com/cncf/staff/issues/501",
+                "assignees": [{"login": "nate-double-u"}],
+                "labels": [],
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        ]
+
+        sync_github(
+            db, github_config["user"], github_config["github"], token="ghp_fake", dry_run=True
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "Preview task" in out
+
+    @patch("nstd.sync.github._fetch_issues_rest")
+    def test_dry_run_skips_task_link(self, mock_fetch, db, github_config, capsys):
+        """dry_run=True must not create task_link rows."""
+        from nstd.sync.github import sync_github
+
+        mock_fetch.return_value = [
+            {
+                "number": 502,
+                "title": "Has jira link",
+                "body": "**Jira:** https://cncfservicedesk.atlassian.net/browse/CNCFSD-99",
+                "state": "open",
+                "html_url": "https://github.com/cncf/staff/issues/502",
+                "assignees": [{"login": "nate-double-u"}],
+                "labels": [],
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        ]
+
+        sync_github(
+            db, github_config["user"], github_config["github"], token="ghp_fake", dry_run=True
+        )
+
+        links = db.execute("SELECT * FROM task_links").fetchall()
+        assert len(links) == 0
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "task_link" in out.lower() or "↔" in out

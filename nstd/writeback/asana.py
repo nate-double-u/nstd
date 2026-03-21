@@ -23,6 +23,7 @@ def writeback_asana_done(
     conn: sqlite3.Connection,
     github_task_id: str,
     token: str,
+    dry_run: bool = False,
 ) -> dict:
     """Mark linked Asana task as complete when a GitHub issue closes.
 
@@ -30,6 +31,7 @@ def writeback_asana_done(
         conn: Database connection.
         github_task_id: The nstd task ID of the closed GitHub issue.
         token: Asana PAT.
+        dry_run: If True, suppress API calls and print [DRY-RUN] lines.
 
     Returns:
         Result dict with 'success', optionally 'skipped' or 'error'.
@@ -43,6 +45,12 @@ def writeback_asana_done(
 
     for link in asana_links:
         asana_gid = link["task_id"].replace("asana:", "")
+
+        if dry_run:
+            print(
+                f"[DRY-RUN] Would mark Asana task {asana_gid} complete (linked to {github_task_id})"
+            )
+            continue
 
         try:
             client = _get_asana_client(token)

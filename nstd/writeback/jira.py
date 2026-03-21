@@ -26,6 +26,7 @@ def writeback_jira_done(
     token: str,
     server_url: str,
     username: str,
+    dry_run: bool = False,
 ) -> dict:
     """Transition linked Jira ticket to Done when a GitHub issue closes.
 
@@ -35,6 +36,7 @@ def writeback_jira_done(
         token: Jira API token.
         server_url: Jira server URL.
         username: Jira username.
+        dry_run: If True, suppress API calls and print [DRY-RUN] lines.
 
     Returns:
         Result dict with 'success', optionally 'skipped' or 'error'.
@@ -48,6 +50,10 @@ def writeback_jira_done(
 
     for link in jira_links:
         jira_key = link["task_id"].replace("jira:", "")
+
+        if dry_run:
+            print(f"[DRY-RUN] Would transition Jira {jira_key} → Done (linked to {github_task_id})")
+            continue
 
         try:
             client = _get_jira_client(server_url, username, token)
