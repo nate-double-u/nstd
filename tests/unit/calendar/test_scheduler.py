@@ -142,6 +142,7 @@ class TestAvailabilityModel:
 class TestSessionSuggestion:
     """Test session suggestion algorithm (§8.5.2)."""
 
+    @freeze_time("2026-03-18")
     def test_basic_suggestion_distributes_across_days(self, default_scheduling_config):
         """6h estimate, 2h sessions, 3 available days -> 3 x 2h sessions."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -163,6 +164,7 @@ class TestSessionSuggestion:
         for s in result["sessions"]:
             assert s["duration_hours"] == 2.0
 
+    @freeze_time("2026-03-18")
     def test_remaining_hours_zero_suggests_nothing(self, default_scheduling_config):
         """When already_scheduled >= estimate, no sessions suggested."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -180,6 +182,7 @@ class TestSessionSuggestion:
 
         assert len(result["sessions"]) == 0
 
+    @freeze_time("2026-03-18")
     def test_session_clamped_to_max_block_hours(self, default_scheduling_config):
         """Session duration capped at max_block_hours (4h)."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -201,6 +204,7 @@ class TestSessionSuggestion:
         for s in result["sessions"]:
             assert s["duration_hours"] <= 4.0
 
+    @freeze_time("2026-03-18")
     def test_session_not_created_below_min_block_hours(self, default_scheduling_config):
         """Day with less than min_block_hours available is skipped."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -221,6 +225,7 @@ class TestSessionSuggestion:
         assert len(result["sessions"]) == 1
         assert result["sessions"][0]["date"] == date(2026, 3, 19)
 
+    @freeze_time("2026-03-18")
     def test_tight_window_flags_warning(self, default_scheduling_config):
         """When not enough time to schedule all hours, a warning is flagged."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -284,6 +289,7 @@ class TestSessionSuggestion:
 
         assert len(result["sessions"]) >= 1
 
+    @freeze_time("2026-03-18")
     def test_session_avoids_occupied_slots(self, default_scheduling_config):
         """Suggested block start time avoids occupied slots."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -313,6 +319,7 @@ class TestSessionSuggestion:
         # Should start at 11:00 or later, not 9:00
         assert session["start_time"] >= time(11, 0)
 
+    @freeze_time("2026-03-18")
     def test_past_blocks_excluded_from_remaining_hours(self, default_scheduling_config):
         """remaining_hours = estimate - future_blocks (past blocks excluded)."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -448,6 +455,7 @@ class TestSchedulingNudges:
 class TestSlotFinding:
     """Test the slot-finding helper for edge cases."""
 
+    @freeze_time("2026-03-18")
     def test_fits_before_first_event(self, default_scheduling_config):
         """Block fits in gap before first occupied slot."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -475,6 +483,7 @@ class TestSlotFinding:
         assert len(result["sessions"]) == 1
         assert result["sessions"][0]["start_time"] == time(9, 0)
 
+    @freeze_time("2026-03-18")
     def test_fits_between_two_events(self, default_scheduling_config):
         """Block fits in gap between two occupied slots."""
         from nstd.calendar.scheduler import suggest_sessions
@@ -504,6 +513,7 @@ class TestSlotFinding:
         # Should start at 10:00 (after first slot ends)
         assert result["sessions"][0]["start_time"] == time(10, 0)
 
+    @freeze_time("2026-03-18")
     def test_day_fully_booked_fallback(self, default_scheduling_config):
         """When no gap exists, falls back to work_start."""
         from nstd.calendar.scheduler import suggest_sessions
