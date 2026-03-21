@@ -1,8 +1,8 @@
 # nstd — "Nate's Stuff To Do"
-## Technical Specification v1.2
+## Technical Specification v1.3
 
 **Author**: nate-double-u  
-**Date**: 2026-03-18  
+**Date**: 2026-03-21  
 **Status**: Final Draft — for implementation by LLM coding agent  
 **Target repo**: `nate-double-u/nstd` (private, personal)
 
@@ -363,17 +363,17 @@ Two concurrent loops run via launchd:
 3. Detect and parse Jira links in GitHub Issue bodies
 4. Fetch assigned Jira issues from configured projects
 5. Fetch assigned Asana tasks AND all tasks in configured `asana.project_gids`
-6. Upsert all records into SQLite
-7. Detect completion events → trigger write-back
-8. Detect conflicts → write to `conflicts` table
-9. Evaluate scheduling status for all open tasks (see §8.5) → update nudge state
-10. Write sync log entry
+6. Upsert all records into SQLite _(skipped in dry-run)_
+7. Detect completion events → trigger write-back _(skipped in dry-run; see §6.7)_
+8. Detect conflicts → write to `conflicts` table _(skipped in dry-run)_
+9. Evaluate scheduling status for all open tasks (see §8.5) → update nudge state _(skipped in dry-run)_
+10. Write sync log entry _(skipped in dry-run)_
 
 **Loop 2 — Calendar poll** (interval: `google_calendar.calendar_poll_interval_minutes`, default 10min):
 1. Read all events from `NSTD Planning` and all `observe_calendars` for the next 14 days
-2. Update `calendar_blocks` table (mark past blocks, detect orphaned blocks)
-3. Update the availability model used by the scheduling engine (see §8.5)
-4. If any office-hours bookings have appeared since last poll, re-evaluate scheduling nudges for affected days
+2. Update `calendar_blocks` table (mark past blocks; see §8.2 for full breakdown, including orphan detection) _(skipped in dry-run)_
+3. Update the availability model used by the scheduling engine (see §8.5) _(skipped in dry-run)_
+4. If any office-hours bookings have appeared since last poll, re-evaluate scheduling nudges for affected days _(skipped in dry-run)_
 
 These two loops are implemented as separate launchd plists or as a single daemon process managing two internal timers — implementation detail for the coding agent to decide.
 
@@ -509,9 +509,49 @@ A conflict is detected when the same field has been updated in both GitHub AND a
 
 Mode is promoted only by explicit user edit of `config.toml`.
 
+### 6.7 Dry-run mode
+
+`nstd sync --dry-run` runs a full sync cycle in read-only mode. All source systems are fetched normally, but **no writes are performed** — neither to external APIs nor to the local database.
+
+**Behaviour:**
+
+- Steps 1–5 of the task sync loop execute normally (reads from GitHub, Jira, Asana).
+- Steps 6–10 are **simulated with writes suppressed**: all detection/diff logic runs (compute upserts, detect completion events, detect conflicts), but no changes are persisted. For each suppressed write, a `[DRY-RUN]` line is logged to stdout describing what _would_ have happened.
+- Calendar poll loop step 1 executes normally (reads events). Steps 2–4 are simulated with writes suppressed; only `[DRY-RUN]` output is produced.
+- Write-back (§7) detection logic runs but no write-back actions are sent to external systems; they are only logged as `[DRY-RUN]`.
+- As part of write suppression, no `sync_log` entry is created.
+
+**Constraints:**
+
+- `--dry-run` is only valid for one-shot sync (`nstd sync --dry-run`).
+- `--daemon --dry-run` is rejected with an error — continuous dry-run is not supported.
+- `--dry-run` is a CLI flag, not a config option. It is a diagnostic tool, not a persistent mode.
+
+**Output format:**
+
+Each proposed write is logged to stdout with a `[DRY-RUN]` prefix:
+
+```
+[DRY-RUN] Would upsert task: CNCFSD-1234 "Fix onboarding flow" (status: open → open)
+[DRY-RUN] Would create task_link: github#42 ↔ jira/CNCFSD-1234 (mirrors)
+[DRY-RUN] Would transition Jira CNCFSD-5678 → Done (linked to github#99)
+[DRY-RUN] Would mark Asana task 12345 complete (linked to github#99)
+[DRY-RUN] Would create calendar block: "Fix onboarding flow" 2026-03-22 10:00–12:00
+[DRY-RUN] Would mark calendar block as past: block_id=7
+
+--- Dry-run summary ---
+Tasks fetched:     14
+Upserts skipped:   14
+Links skipped:      2
+Write-backs skipped: 1 Jira, 1 Asana
+Calendar writes skipped: 1 create, 0 update
+```
+
 ---
 
 ## 7. Write-back
+
+All write-back operations are skipped in `--dry-run` mode (see §6.7). Each skipped write-back is logged to stdout with a `[DRY-RUN]` prefix.
 
 ### 7.1 GitHub → Jira
 
@@ -586,6 +626,8 @@ Color:       Tomato = high priority
 - **Updated**: If `due_date` or `start_date` changes during sync, the event description is updated. The time slot is not moved automatically.
 - **Task closed**: All future blocks for the task have their title prefixed with `✓ ` and colour set to Graphite. Blocks are not deleted (kept for review). Past blocks contribute to `estimates.actual_hours`.
 - **Orphaned**: Block exists in `NSTD Planning` but task is not found or is closed. Flagged in Calendar tab.
+
+All calendar write operations (create, update, mark complete) are skipped in `--dry-run` mode (see §6.7). The corresponding `calendar_blocks` database records are also not created or updated, preventing phantom state.
 
 ### 8.5 Scheduling Engine
 
@@ -790,12 +832,15 @@ nstd                      # Open TUI (default)
 nstd setup                # Interactive first-run setup wizard
 nstd sync                 # Run one full sync cycle and exit
 nstd sync --source github # Sync only one source
+nstd sync --dry-run       # Preview sync: read all sources, skip all writes (see §6.7)
 nstd sync --daemon        # Run continuously (used by launchd)
 nstd status               # Print last sync status to stdout
 nstd block <task-id>      # Open scheduling dialog for a task (non-TUI)
 nstd config               # Open config.toml in $EDITOR
 nstd logs                 # Tail the sync log
 ```
+
+`--dry-run` and `--source` can be combined. `--dry-run` and `--daemon` cannot — the CLI must reject this combination with an error.
 
 ---
 
