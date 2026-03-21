@@ -371,9 +371,9 @@ Two concurrent loops run via launchd:
 
 **Loop 2 — Calendar poll** (interval: `google_calendar.calendar_poll_interval_minutes`, default 10min):
 1. Read all events from `NSTD Planning` and all `observe_calendars` for the next 14 days
-2. Update `calendar_blocks` table (mark past blocks, detect orphaned blocks) _(skipped in dry-run)_
-3. Update the availability model used by the scheduling engine (see §8.5)
-4. If any office-hours bookings have appeared since last poll, re-evaluate scheduling nudges for affected days
+2. Update `calendar_blocks` table (mark past blocks; see §8.2 for full breakdown, including orphan detection) _(skipped in dry-run)_
+3. Update the availability model used by the scheduling engine (see §8.5) _(skipped in dry-run)_
+4. If any office-hours bookings have appeared since last poll, re-evaluate scheduling nudges for affected days _(skipped in dry-run)_
 
 These two loops are implemented as separate launchd plists or as a single daemon process managing two internal timers — implementation detail for the coding agent to decide.
 
@@ -516,10 +516,10 @@ Mode is promoted only by explicit user edit of `config.toml`.
 **Behaviour:**
 
 - Steps 1–5 of the task sync loop execute normally (reads from GitHub, Jira, Asana).
-- Steps 6–10 are skipped. For each skipped action, a `[DRY-RUN]` line is logged to stdout describing what _would_ have happened.
-- Calendar poll loop step 1 executes normally (reads events). Steps 2–4 are skipped.
-- Write-back (§7) is never triggered.
-- No `sync_log` entry is created.
+- Steps 6–10 are **simulated with writes suppressed**: all detection/diff logic runs (compute upserts, detect completion events, detect conflicts), but no changes are persisted. For each suppressed write, a `[DRY-RUN]` line is logged to stdout describing what _would_ have happened.
+- Calendar poll loop step 1 executes normally (reads events). Steps 2–4 are simulated with writes suppressed; only `[DRY-RUN]` output is produced.
+- Write-back (§7) detection logic runs but no write-back actions are sent to external systems; they are only logged as `[DRY-RUN]`.
+- As part of write suppression, no `sync_log` entry is created.
 
 **Constraints:**
 
