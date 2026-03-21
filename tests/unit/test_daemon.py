@@ -61,9 +61,9 @@ class TestRunTaskSync:
         config = MagicMock()
         run_task_sync(conn, config)
 
-        mock_gh.assert_called_once_with(conn, config)
-        mock_jira.assert_called_once_with(conn, config)
-        mock_asana.assert_called_once_with(conn, config)
+        mock_gh.assert_called_once_with(conn, config, False)
+        mock_jira.assert_called_once_with(conn, config, False)
+        mock_asana.assert_called_once_with(conn, config, False)
 
     @patch("nstd.daemon._sync_asana")
     @patch("nstd.daemon._sync_jira")
@@ -228,7 +228,132 @@ class TestRunTaskSync:
         assert log["status"] == "error"
 
 
-# --- Calendar poll orchestration tests ---
+class TestRunTaskSyncDryRun:
+    """Tests for run_task_sync dry-run mode (§6.7)."""
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_dry_run_passes_flag_to_sync_functions(self, mock_gh, mock_jira, mock_asana, conn):
+        """dry_run=True should be forwarded to each sync function."""
+        mock_gh.return_value = {"fetched": 3, "updated": 3}
+        mock_jira.return_value = {"fetched": 2, "updated": 2, "errors": []}
+        mock_asana.return_value = {"fetched": 1, "updated": 1, "errors": []}
+
+        config = MagicMock()
+        run_task_sync(conn, config, dry_run=True)
+
+        mock_gh.assert_called_once_with(conn, config, True)
+        mock_jira.assert_called_once_with(conn, config, True)
+        mock_asana.assert_called_once_with(conn, config, True)
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_dry_run_does_not_create_sync_log(self, mock_gh, mock_jira, mock_asana, conn):
+        """dry_run=True must not create any sync_log entry (§6.7)."""
+        mock_gh.return_value = {"fetched": 5, "updated": 5}
+        mock_jira.return_value = {"fetched": 0, "updated": 0, "errors": []}
+        mock_asana.return_value = {"fetched": 0, "updated": 0, "errors": []}
+
+        config = MagicMock()
+        run_task_sync(conn, config, dry_run=True)
+
+        log = conn.execute("SELECT COUNT(*) FROM sync_log").fetchone()[0]
+        assert log == 0
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_dry_run_log_id_is_none(self, mock_gh, mock_jira, mock_asana, conn):
+        """dry_run=True should return log_id=None (no log entry created)."""
+        mock_gh.return_value = {"fetched": 1, "updated": 1}
+        mock_jira.return_value = {"fetched": 0, "updated": 0, "errors": []}
+        mock_asana.return_value = {"fetched": 0, "updated": 0, "errors": []}
+
+        config = MagicMock()
+        result = run_task_sync(conn, config, dry_run=True)
+
+        assert result["log_id"] is None
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_dry_run_still_accumulates_stats(self, mock_gh, mock_jira, mock_asana, conn):
+        """Dry-run should still count fetched/updated from all sources."""
+        mock_gh.return_value = {"fetched": 10, "updated": 10}
+        mock_jira.return_value = {"fetched": 5, "updated": 5, "errors": []}
+        mock_asana.return_value = {"fetched": 2, "updated": 2, "errors": []}
+
+        config = MagicMock()
+        result = run_task_sync(conn, config, dry_run=True)
+
+        assert result["total_fetched"] == 17
+        assert result["total_updated"] == 17
+        assert result["errors"] == []
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_dry_run_does_not_write_sync_log_on_error(self, mock_gh, mock_jira, mock_asana, conn):
+        """Dry-run mode must not create a sync_log even when sources fail."""
+        mock_gh.side_effect = Exception("GitHub API error")
+        mock_jira.return_value = {"fetched": 0, "updated": 0, "errors": []}
+        mock_asana.return_value = {"fetched": 0, "updated": 0, "errors": []}
+
+        config = MagicMock()
+        result = run_task_sync(conn, config, dry_run=True)
+
+        assert len(result["errors"]) == 1
+        log_count = conn.execute("SELECT COUNT(*) FROM sync_log").fetchone()[0]
+        assert log_count == 0
+
+
+class TestRunCalendarPollDryRun:
+    """Tests for run_calendar_poll dry-run mode (§6.7)."""
+
+    def test_dry_run_passes_flag_to_poll_fn(self, conn):
+        """dry_run=True should be forwarded to the poll function."""
+        mock_service = MagicMock()
+        config = MagicMock()
+        config.google_calendar.calendar_id = "cal_nstd"
+        config.google_calendar.observe_calendars = []
+
+        mock_poll = MagicMock(
+            return_value={
+                "nstd_events": [],
+                "observed_events": [],
+                "orphaned_blocks": [],
+                "past_blocks_marked": 0,
+            }
+        )
+        run_calendar_poll(conn, config, mock_service, poll_fn=mock_poll, dry_run=True)
+
+        mock_poll.assert_called_once()
+        _, kwargs = mock_poll.call_args
+        assert kwargs.get("dry_run") is True
+
+    def test_dry_run_default_poll_fn_passes_flag(self, conn):
+        """run_calendar_poll with dry_run=True should pass dry_run to poll_calendars."""
+        with patch("nstd.calendar.gcal.poll_calendars") as mock_poll:
+            mock_poll.return_value = {
+                "nstd_events": [],
+                "observed_events": [],
+                "orphaned_blocks": [],
+                "past_blocks_marked": 0,
+            }
+            config = MagicMock()
+            service = MagicMock()
+
+            run_calendar_poll(conn, config, service, dry_run=True)
+
+            mock_poll.assert_called_once_with(
+                conn,
+                service=service,
+                nstd_calendar_id=config.google_calendar.calendar_id,
+                observe_calendar_ids=config.google_calendar.observe_calendars,
+                dry_run=True,
+            )
 
 
 class TestRunCalendarPoll:
@@ -463,7 +588,9 @@ class TestSyncFunctionWiring:
 
         config = MagicMock()
         result = _sync_github(conn, config)
-        mock_sync.assert_called_once_with(conn, config.user, config.github, "fake-token")
+        mock_sync.assert_called_once_with(
+            conn, config.user, config.github, "fake-token", dry_run=False
+        )
         assert result["fetched"] == 5
 
     @patch("nstd.daemon.get_credential", return_value="fake-token")
@@ -474,7 +601,7 @@ class TestSyncFunctionWiring:
 
         config = MagicMock()
         result = _sync_jira(conn, config)
-        mock_sync.assert_called_once_with(conn, config.jira, "fake-token")
+        mock_sync.assert_called_once_with(conn, config.jira, "fake-token", dry_run=False)
         assert result["fetched"] == 3
 
     @patch("nstd.daemon.get_credential", return_value="fake-token")
@@ -486,7 +613,7 @@ class TestSyncFunctionWiring:
         config = MagicMock()
         result = _sync_asana(conn, config)
         mock_cred.assert_called_once_with("nstd-asana", config.user.github_username)
-        mock_sync.assert_called_once_with(conn, config.asana, "fake-token")
+        mock_sync.assert_called_once_with(conn, config.asana, "fake-token", dry_run=False)
         assert result["fetched"] == 2
 
     @patch("nstd.calendar.gcal.poll_calendars")
@@ -502,4 +629,5 @@ class TestSyncFunctionWiring:
             service=service,
             nstd_calendar_id=config.google_calendar.calendar_id,
             observe_calendar_ids=config.google_calendar.observe_calendars,
+            dry_run=False,
         )

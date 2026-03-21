@@ -75,10 +75,18 @@ def setup() -> None:
     "--source", type=click.Choice(["github", "jira", "asana"]), help="Sync only one source."
 )
 @click.option("--daemon", is_flag=True, help="Run continuously (used by launchd).")
-def sync(source: str | None, daemon: bool) -> None:
+@click.option("--dry-run", is_flag=True, help="Preview sync: read all sources, skip all writes.")
+def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
     """Run a sync cycle (one-shot or continuous)."""
+    if daemon and dry_run:
+        raise click.UsageError("--dry-run cannot be used with --daemon.")
     if daemon:
         click.echo("Starting daemon mode...")
+    elif dry_run:
+        if source:
+            click.echo(f"Dry run: syncing {source} (no writes)...")
+        else:
+            click.echo("Dry run: running full sync (no writes)...")
     elif source:
         click.echo(f"Syncing {source}...")
     else:

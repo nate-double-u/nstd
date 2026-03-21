@@ -134,6 +134,32 @@ class TestSyncCommand:
         assert result.exit_code == 0
         assert "daemon" in result.output.lower()
 
+    def test_sync_has_dry_run_flag(self, runner):
+        """nstd sync should accept --dry-run flag."""
+        result = runner.invoke(cli, ["sync", "--help"])
+        assert "--dry-run" in result.output
+
+    def test_sync_dry_run_full(self, runner):
+        """nstd sync --dry-run should output dry-run message."""
+        result = runner.invoke(cli, ["sync", "--dry-run"])
+        assert result.exit_code == 0
+        assert "dry run" in result.output.lower()
+        assert "no writes" in result.output.lower()
+
+    def test_sync_dry_run_with_source(self, runner):
+        """nstd sync --dry-run --source github should mention both."""
+        result = runner.invoke(cli, ["sync", "--dry-run", "--source", "github"])
+        assert result.exit_code == 0
+        assert "dry run" in result.output.lower()
+        assert "github" in result.output.lower()
+
+    def test_sync_daemon_dry_run_rejected(self, runner):
+        """nstd sync --daemon --dry-run must be rejected with an error."""
+        result = runner.invoke(cli, ["sync", "--daemon", "--dry-run"])
+        assert result.exit_code != 0
+        assert "dry-run" in result.output.lower()
+        assert "daemon" in result.output.lower()
+
 
 # --- Status command tests ---
 

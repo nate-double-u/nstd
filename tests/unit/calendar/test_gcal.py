@@ -528,3 +528,92 @@ class TestEventParsing:
 
         event = {"id": "bad", "summary": "No start", "start": {}}
         assert event_date(event) is None
+
+
+class TestPollCalendarsDryRun:
+    """§6.7: poll_calendars dry-run suppresses mark_past_blocks DB write."""
+
+    def test_dry_run_skips_mark_past_blocks(self, capsys):
+        """dry_run=True must not call mark_past_blocks (no DB writes)."""
+        from unittest.mock import MagicMock, patch
+
+        from nstd.calendar.gcal import poll_calendars
+        from nstd.db import create_schema, get_connection
+
+        conn = get_connection(":memory:")
+        create_schema(conn)
+
+        mock_service = MagicMock()
+        mock_service.events.return_value.list.return_value.execute.return_value = {"items": []}
+
+        with patch("nstd.calendar.gcal.mark_past_blocks") as mock_mark:
+            result = poll_calendars(
+                conn,
+                service=mock_service,
+                nstd_calendar_id="cal_nstd",
+                observe_calendar_ids=[],
+                dry_run=True,
+            )
+
+        mock_mark.assert_not_called()
+        assert result["past_blocks_marked"] == 0
+        conn.close()
+
+    def test_dry_run_prints_dry_run_line(self, capsys):
+        """dry_run=True must print a [DRY-RUN] line for skipped writes."""
+        from unittest.mock import MagicMock
+
+        from nstd.calendar.gcal import poll_calendars
+        from nstd.db import create_schema, get_connection
+
+        conn = get_connection(":memory:")
+        create_schema(conn)
+
+        mock_service = MagicMock()
+        mock_service.events.return_value.list.return_value.execute.return_value = {"items": []}
+
+        poll_calendars(
+            conn,
+            service=mock_service,
+            nstd_calendar_id="cal_nstd",
+            observe_calendar_ids=[],
+            dry_run=True,
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        conn.close()
+
+    def test_dry_run_still_fetches_events(self):
+        """dry_run=True should still read (fetch) calendar events."""
+        from unittest.mock import MagicMock
+
+        from nstd.calendar.gcal import poll_calendars
+        from nstd.db import create_schema, get_connection
+
+        conn = get_connection(":memory:")
+        create_schema(conn)
+
+        mock_service = MagicMock()
+        mock_service.events.return_value.list.return_value.execute.return_value = {
+            "items": [
+                {
+                    "id": "evt1",
+                    "summary": "Planning block",
+                    "status": "confirmed",
+                    "start": {"dateTime": "2026-03-22T10:00:00+00:00"},
+                    "end": {"dateTime": "2026-03-22T12:00:00+00:00"},
+                }
+            ]
+        }
+
+        result = poll_calendars(
+            conn,
+            service=mock_service,
+            nstd_calendar_id="cal_nstd",
+            observe_calendar_ids=[],
+            dry_run=True,
+        )
+
+        assert len(result["nstd_events"]) == 1
+        conn.close()

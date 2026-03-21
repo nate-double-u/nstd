@@ -191,6 +191,7 @@ def sync_github(
     user_config: UserConfig,
     github_config: GitHubConfig,
     token: str,
+    dry_run: bool = False,
 ) -> dict:
     """Run GitHub sync: fetch issues, filter, upsert, detect Jira links.
 
@@ -199,6 +200,7 @@ def sync_github(
         user_config: User configuration.
         github_config: GitHub configuration.
         token: GitHub PAT.
+        dry_run: If True, suppress all DB writes and print [DRY-RUN] lines.
 
     Returns:
         Stats dict with 'fetched' and 'updated' counts.
@@ -215,32 +217,44 @@ def sync_github(
                 continue
 
             task = issue_to_task(issue, repo)
-            upsert_task(conn, task)
+
+            if dry_run:
+                print(
+                    f"[DRY-RUN] Would upsert task: {task['id']} "
+                    f'"{task["title"]}" (status: {task["state"]})'
+                )
+            else:
+                upsert_task(conn, task)
             updated += 1
 
             # Detect Jira links
             jira_url, jira_key = extract_jira_link(issue.get("body"))
             if jira_key:
                 jira_task_id = f"jira:{jira_key}"
-                # Ensure a placeholder task exists for the Jira side of the link
-                jira_placeholder = {
-                    "id": jira_task_id,
-                    "source": "jira",
-                    "source_id": jira_key,
-                    "source_url": jira_url,
-                    "title": f"[Jira] {jira_key}",
-                    "body": None,
-                    "state": "open",
-                    "assignee": None,
-                    "priority": None,
-                    "size": None,
-                    "estimate_hours": None,
-                    "start_date": None,
-                    "due_date": None,
-                    "created_at": None,
-                    "updated_at": None,
-                }
-                upsert_task(conn, jira_placeholder)
-                create_task_link(conn, task["id"], jira_task_id, "mirrors")
+                if dry_run:
+                    print(
+                        f"[DRY-RUN] Would create task_link: {task['id']} ↔ {jira_task_id} (mirrors)"
+                    )
+                else:
+                    # Ensure a placeholder task exists for the Jira side of the link
+                    jira_placeholder = {
+                        "id": jira_task_id,
+                        "source": "jira",
+                        "source_id": jira_key,
+                        "source_url": jira_url,
+                        "title": f"[Jira] {jira_key}",
+                        "body": None,
+                        "state": "open",
+                        "assignee": None,
+                        "priority": None,
+                        "size": None,
+                        "estimate_hours": None,
+                        "start_date": None,
+                        "due_date": None,
+                        "created_at": None,
+                        "updated_at": None,
+                    }
+                    upsert_task(conn, jira_placeholder)
+                    create_task_link(conn, task["id"], jira_task_id, "mirrors")
 
     return {"fetched": fetched, "updated": updated}

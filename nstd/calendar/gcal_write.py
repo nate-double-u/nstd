@@ -111,6 +111,7 @@ def create_calendar_block(
     start_dt: str,
     end_dt: str,
     duration_hours: float,
+    dry_run: bool = False,
 ) -> dict:
     """Create a calendar block in GCal and record it in the database.
 
@@ -122,6 +123,7 @@ def create_calendar_block(
         start_dt: ISO 8601 start datetime string.
         end_dt: ISO 8601 end datetime string.
         duration_hours: Duration of the block in hours.
+        dry_run: If True, suppress all API and DB writes and print [DRY-RUN] lines.
 
     Returns:
         Dict with block info including gcal_event_id and task_id.
@@ -136,6 +138,26 @@ def create_calendar_block(
             f"Only GitHub tasks can have calendar blocks. "
             f"Task '{task.get('id')}' has source '{task.get('source')}'."
         )
+
+    if dry_run:
+        # Parse start/end for human-readable display
+        try:
+            start_parsed = dtparser.isoparse(start_dt)
+            end_parsed = dtparser.isoparse(end_dt)
+            date_str = start_parsed.strftime("%Y-%m-%d")
+            time_range = f"{start_parsed.strftime('%H:%M')}\u2013{end_parsed.strftime('%H:%M')}"
+        except (ValueError, TypeError):
+            date_str = start_dt
+            time_range = end_dt
+        print(f'[DRY-RUN] Would create calendar block: "{task["title"]}" {date_str} {time_range}')
+        return {
+            "id": None,
+            "task_id": task["id"],
+            "gcal_event_id": None,
+            "start_dt": start_dt,
+            "end_dt": end_dt,
+            "duration_hours": duration_hours,
+        }
 
     event_body = build_event_body(task, start_dt, end_dt)
 
@@ -166,6 +188,7 @@ def mark_task_blocks_completed(
     service,
     calendar_id: str,
     task_id: str,
+    dry_run: bool = False,
 ) -> int:
     """Mark all future blocks for a task as completed in GCal.
 
@@ -177,6 +200,7 @@ def mark_task_blocks_completed(
         service: Google Calendar API service object.
         calendar_id: Calendar ID for the NSTD Planning calendar.
         task_id: Task ID whose blocks should be marked.
+        dry_run: If True, suppress all API writes and print [DRY-RUN] lines.
 
     Returns:
         Number of blocks updated.
@@ -187,6 +211,11 @@ def mark_task_blocks_completed(
     for block in future_blocks:
         # Runtime safety: skip blocks that are actually past even if is_past=0
         if not _is_truly_future(block):
+            continue
+
+        if dry_run:
+            print(f"[DRY-RUN] Would mark calendar block as past: block_id={block['id']}")
+            updated += 1
             continue
 
         gcal_event_id = block["gcal_event_id"]
@@ -218,6 +247,7 @@ def update_block_description(
     service,
     calendar_id: str,
     task: dict,
+    dry_run: bool = False,
 ) -> int:
     """Update the description of all future blocks for a task.
 
@@ -230,6 +260,7 @@ def update_block_description(
         service: Google Calendar API service object.
         calendar_id: Calendar ID for the NSTD Planning calendar.
         task: Updated task dict.
+        dry_run: If True, suppress all API writes and print [DRY-RUN] lines.
 
     Returns:
         Number of blocks updated.
@@ -240,6 +271,14 @@ def update_block_description(
     for block in future_blocks:
         # Runtime safety: skip blocks that are actually past even if is_past=0
         if not _is_truly_future(block):
+            continue
+
+        if dry_run:
+            print(
+                f"[DRY-RUN] Would update calendar block description: "
+                f'block_id={block["id"]} task="{task["title"]}"'
+            )
+            updated += 1
             continue
 
         gcal_event_id = block["gcal_event_id"]
