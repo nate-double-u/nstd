@@ -214,7 +214,7 @@ def mark_task_blocks_completed(
             continue
 
         if dry_run:
-            print(f"[DRY-RUN] Would mark calendar block as past: block_id={block['id']}")
+            print(f"[DRY-RUN] Would mark calendar block as completed: block_id={block['id']}")
             updated += 1
             continue
 

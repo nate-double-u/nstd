@@ -227,8 +227,34 @@ class TestRunTaskSync:
         log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
         assert log["status"] == "error"
 
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_source_filter_only_runs_selected(self, mock_gh, mock_jira, mock_asana, conn):
+        """source='github' should only call _sync_github, not jira/asana."""
+        mock_gh.return_value = {"fetched": 5, "updated": 5}
 
-class TestRunTaskSyncDryRun:
+        config = MagicMock()
+        result = run_task_sync(conn, config, source="github")
+
+        mock_gh.assert_called_once()
+        mock_jira.assert_not_called()
+        mock_asana.assert_not_called()
+        assert result["total_fetched"] == 5
+
+    @patch("nstd.daemon._sync_asana")
+    @patch("nstd.daemon._sync_jira")
+    @patch("nstd.daemon._sync_github")
+    def test_source_filter_logs_source(self, mock_gh, mock_jira, mock_asana, conn):
+        """source='jira' should log source='jira' in sync_log."""
+        mock_jira.return_value = {"fetched": 3, "updated": 3, "errors": []}
+
+        config = MagicMock()
+        run_task_sync(conn, config, source="jira")
+
+        log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert log["source"] == "jira"
+
     """Tests for run_task_sync dry-run mode (§6.7)."""
 
     @patch("nstd.daemon._sync_asana")

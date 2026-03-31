@@ -130,7 +130,12 @@ def _sync_asana(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = Fa
     return sync_asana(conn, config.asana, token, dry_run=dry_run)
 
 
-def run_task_sync(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = False) -> dict:
+def run_task_sync(
+    conn: sqlite3.Connection,
+    config: NstdConfig,
+    dry_run: bool = False,
+    source: str | None = None,
+) -> dict:
     """Run a full task sync cycle.
 
     Calls all source sync functions in order. Each sync function handles
@@ -150,22 +155,27 @@ def run_task_sync(conn: sqlite3.Connection, config: NstdConfig, dry_run: bool = 
         conn: Database connection.
         config: NstdConfig object.
         dry_run: If True, suppress all writes (DB and external APIs).
+        source: If set, sync only this source ("github", "jira", or "asana").
 
     Returns:
         Dict with keys: total_fetched (int), total_updated (int),
                         errors (list[str]), log_id (int | None).
                         log_id is None in dry-run mode (no sync_log entry created).
     """
-    log_id = None if dry_run else start_sync_log(conn, source=None)
+    log_id = None if dry_run else start_sync_log(conn, source=source)
     total_fetched = 0
     total_updated = 0
     errors = []
 
     # Sync each source with error isolation
+    all_sources = [
+        ("github", "GitHub", _sync_github),
+        ("jira", "Jira", _sync_jira),
+        ("asana", "Asana", _sync_asana),
+    ]
+
     sync_sources = [
-        ("GitHub", _sync_github),
-        ("Jira", _sync_jira),
-        ("Asana", _sync_asana),
+        (display, fn) for key, display, fn in all_sources if source is None or key == source
     ]
 
     for source_name, sync_fn in sync_sources:
@@ -215,8 +225,9 @@ def run_calendar_poll(
     3. Detect orphaned blocks
     4. Re-evaluate scheduling nudges for affected days
 
-    In dry-run mode (§6.7): step 1 executes normally; steps 2-4 are
-    suppressed with [DRY-RUN] output only.
+    In dry-run mode (§6.7): all read and detection steps (1-4) execute
+    normally, but any writes they would trigger (e.g. marking past blocks,
+    scheduling nudges) are suppressed and logged with [DRY-RUN] output only.
 
     Args:
         conn: Database connection.

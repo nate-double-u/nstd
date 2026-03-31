@@ -118,15 +118,46 @@ class TestSyncCommand:
 
     def test_sync_full(self, runner):
         """nstd sync with no options should run full sync."""
-        result = runner.invoke(cli, ["sync"])
+        with (
+            patch("nstd.config.load_config") as mock_config,
+            patch("nstd.daemon.run_task_sync") as mock_sync,
+            patch("nstd.db.get_connection") as mock_conn,
+            patch("nstd.db.create_schema"),
+        ):
+            mock_sync.return_value = {
+                "total_fetched": 10,
+                "total_updated": 5,
+                "errors": [],
+                "log_id": 1,
+            }
+            mock_conn.return_value = mock_config  # just needs .close()
+            result = runner.invoke(cli, ["sync"])
         assert result.exit_code == 0
         assert "full sync" in result.output.lower()
+        assert "sync complete" in result.output.lower()
 
     def test_sync_with_source(self, runner):
-        """nstd sync --source github should sync that source."""
-        result = runner.invoke(cli, ["sync", "--source", "github"])
+        """nstd sync --source github should sync only that source."""
+        with (
+            patch("nstd.config.load_config"),
+            patch("nstd.daemon.run_task_sync") as mock_sync,
+            patch("nstd.db.get_connection") as mock_conn,
+            patch("nstd.db.create_schema"),
+        ):
+            mock_sync.return_value = {
+                "total_fetched": 3,
+                "total_updated": 3,
+                "errors": [],
+                "log_id": 1,
+            }
+            mock_conn.return_value.__enter__ = lambda s: s
+            mock_conn.return_value.__exit__ = lambda s, *a: None
+            result = runner.invoke(cli, ["sync", "--source", "github"])
         assert result.exit_code == 0
         assert "github" in result.output.lower()
+        mock_sync.assert_called_once()
+        call_kwargs = mock_sync.call_args
+        assert call_kwargs[1]["source"] == "github"
 
     def test_sync_daemon_mode(self, runner):
         """nstd sync --daemon should start daemon mode."""
@@ -140,18 +171,53 @@ class TestSyncCommand:
         assert "--dry-run" in result.output
 
     def test_sync_dry_run_full(self, runner):
-        """nstd sync --dry-run should output dry-run message."""
-        result = runner.invoke(cli, ["sync", "--dry-run"])
+        """nstd sync --dry-run should run sync with dry_run=True and print summary."""
+        with (
+            patch("nstd.config.load_config"),
+            patch("nstd.daemon.run_task_sync") as mock_sync,
+            patch("nstd.db.get_connection") as mock_conn,
+            patch("nstd.db.create_schema"),
+        ):
+            mock_sync.return_value = {
+                "total_fetched": 14,
+                "total_updated": 14,
+                "errors": [],
+                "log_id": None,
+            }
+            mock_conn.return_value.__enter__ = lambda s: s
+            mock_conn.return_value.__exit__ = lambda s, *a: None
+            result = runner.invoke(cli, ["sync", "--dry-run"])
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
         assert "no writes" in result.output.lower()
+        assert "Dry-run summary" in result.output
+        assert "Tasks fetched:" in result.output
+        mock_sync.assert_called_once()
+        assert mock_sync.call_args[1]["dry_run"] is True
 
     def test_sync_dry_run_with_source(self, runner):
-        """nstd sync --dry-run --source github should mention both."""
-        result = runner.invoke(cli, ["sync", "--dry-run", "--source", "github"])
+        """nstd sync --dry-run --source github should pass both flags through."""
+        with (
+            patch("nstd.config.load_config"),
+            patch("nstd.daemon.run_task_sync") as mock_sync,
+            patch("nstd.db.get_connection") as mock_conn,
+            patch("nstd.db.create_schema"),
+        ):
+            mock_sync.return_value = {
+                "total_fetched": 5,
+                "total_updated": 5,
+                "errors": [],
+                "log_id": None,
+            }
+            mock_conn.return_value.__enter__ = lambda s: s
+            mock_conn.return_value.__exit__ = lambda s, *a: None
+            result = runner.invoke(cli, ["sync", "--dry-run", "--source", "github"])
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
         assert "github" in result.output.lower()
+        call_kwargs = mock_sync.call_args[1]
+        assert call_kwargs["dry_run"] is True
+        assert call_kwargs["source"] == "github"
 
     def test_sync_daemon_dry_run_rejected(self, runner):
         """nstd sync --daemon --dry-run must be rejected with an error."""
@@ -159,6 +225,35 @@ class TestSyncCommand:
         assert result.exit_code != 0
         assert "dry-run" in result.output.lower()
         assert "daemon" in result.output.lower()
+
+    def test_sync_config_not_found(self, runner):
+        """nstd sync should fail gracefully when config is missing."""
+        from nstd.config import ConfigurationError
+
+        with patch("nstd.config.load_config", side_effect=ConfigurationError("not found")):
+            result = runner.invoke(cli, ["sync"])
+        assert result.exit_code != 0
+        assert "configuration error" in result.output.lower()
+
+    def test_sync_reports_errors(self, runner):
+        """nstd sync should print errors from sync sources."""
+        with (
+            patch("nstd.config.load_config"),
+            patch("nstd.daemon.run_task_sync") as mock_sync,
+            patch("nstd.db.get_connection") as mock_conn,
+            patch("nstd.db.create_schema"),
+        ):
+            mock_sync.return_value = {
+                "total_fetched": 5,
+                "total_updated": 3,
+                "errors": ["GitHub: rate limited"],
+                "log_id": 1,
+            }
+            mock_conn.return_value.__enter__ = lambda s: s
+            mock_conn.return_value.__exit__ = lambda s, *a: None
+            result = runner.invoke(cli, ["sync"])
+        assert result.exit_code == 0
+        assert "rate limited" in result.output
 
 
 # --- Status command tests ---
