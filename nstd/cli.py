@@ -75,7 +75,9 @@ def setup() -> None:
     "--source", type=click.Choice(["github", "jira", "asana"]), help="Sync only one source."
 )
 @click.option("--daemon", is_flag=True, help="Run continuously (used by launchd).")
-@click.option("--dry-run", is_flag=True, help="Preview sync: read all sources, skip all writes.")
+@click.option(
+    "--dry-run", is_flag=True, help="Preview task sync: fetch from sources, skip all writes."
+)
 def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
     """Run a sync cycle (one-shot or continuous)."""
     if daemon and dry_run:
