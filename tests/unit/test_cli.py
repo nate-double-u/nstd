@@ -119,7 +119,7 @@ class TestSyncCommand:
     def test_sync_full(self, runner):
         """nstd sync with no options should run full sync."""
         with (
-            patch("nstd.config.load_config") as mock_config,
+            patch("nstd.config.load_config"),
             patch("nstd.daemon.run_task_sync") as mock_sync,
             patch("nstd.db.get_connection") as mock_conn,
             patch("nstd.db.create_schema"),
@@ -130,7 +130,9 @@ class TestSyncCommand:
                 "errors": [],
                 "log_id": 1,
             }
-            mock_conn.return_value = mock_config  # just needs .close()
+            conn_mock = MagicMock(name="connection")
+            conn_mock.close = MagicMock()
+            mock_conn.return_value = conn_mock
             result = runner.invoke(cli, ["sync"])
         assert result.exit_code == 0
         assert "full sync" in result.output.lower()
@@ -150,8 +152,9 @@ class TestSyncCommand:
                 "errors": [],
                 "log_id": 1,
             }
-            mock_conn.return_value.__enter__ = lambda s: s
-            mock_conn.return_value.__exit__ = lambda s, *a: None
+            conn_mock = MagicMock(name="connection")
+            conn_mock.close = MagicMock()
+            mock_conn.return_value = conn_mock
             result = runner.invoke(cli, ["sync", "--source", "github"])
         assert result.exit_code == 0
         assert "github" in result.output.lower()
@@ -261,8 +264,9 @@ class TestSyncCommand:
                 "errors": ["GitHub: rate limited"],
                 "log_id": 1,
             }
-            mock_conn.return_value.__enter__ = lambda s: s
-            mock_conn.return_value.__exit__ = lambda s, *a: None
+            conn_mock = MagicMock(name="connection")
+            conn_mock.close = MagicMock()
+            mock_conn.return_value = conn_mock
             result = runner.invoke(cli, ["sync"])
         assert result.exit_code == 0
         assert "rate limited" in result.output

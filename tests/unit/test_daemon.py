@@ -61,9 +61,9 @@ class TestRunTaskSync:
         config = MagicMock()
         run_task_sync(conn, config)
 
-        mock_gh.assert_called_once_with(conn, config, False)
-        mock_jira.assert_called_once_with(conn, config, False)
-        mock_asana.assert_called_once_with(conn, config, False)
+        mock_gh.assert_called_once_with(conn, config, dry_run=False)
+        mock_jira.assert_called_once_with(conn, config, dry_run=False)
+        mock_asana.assert_called_once_with(conn, config, dry_run=False)
 
     @patch("nstd.daemon._sync_asana")
     @patch("nstd.daemon._sync_jira")
@@ -271,9 +271,9 @@ class TestRunTaskSyncDryRun:
         config = MagicMock()
         run_task_sync(conn, config, dry_run=True)
 
-        mock_gh.assert_called_once_with(conn, config, True)
-        mock_jira.assert_called_once_with(conn, config, True)
-        mock_asana.assert_called_once_with(conn, config, True)
+        mock_gh.assert_called_once_with(conn, config, dry_run=True)
+        mock_jira.assert_called_once_with(conn, config, dry_run=True)
+        mock_asana.assert_called_once_with(conn, config, dry_run=True)
 
     @patch("nstd.daemon._sync_asana")
     @patch("nstd.daemon._sync_jira")

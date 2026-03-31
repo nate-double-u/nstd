@@ -180,7 +180,7 @@ def run_task_sync(
 
     for source_name, sync_fn in sync_sources:
         try:
-            stats = sync_fn(conn, config, dry_run)
+            stats = sync_fn(conn, config, dry_run=dry_run)
             total_fetched += stats.get("fetched", 0)
             total_updated += stats.get("updated", 0)
             # Aggregate per-source errors from stats dict
