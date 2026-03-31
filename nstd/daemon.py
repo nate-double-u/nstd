@@ -162,11 +162,6 @@ def run_task_sync(
                         errors (list[str]), log_id (int | None).
                         log_id is None in dry-run mode (no sync_log entry created).
     """
-    log_id = None if dry_run else start_sync_log(conn, source=source)
-    total_fetched = 0
-    total_updated = 0
-    errors = []
-
     # Sync each source with error isolation
     all_sources = [
         ("github", "GitHub", _sync_github),
@@ -179,6 +174,11 @@ def run_task_sync(
         raise ValueError(
             f"Unknown source '{source}'. Expected one of: " + ", ".join(sorted(valid_source_keys))
         )
+
+    log_id = None if dry_run else start_sync_log(conn, source=source)
+    total_fetched = 0
+    total_updated = 0
+    errors = []
 
     sync_sources = [
         (display, fn) for key, display, fn in all_sources if source is None or key == source

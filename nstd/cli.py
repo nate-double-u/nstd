@@ -87,6 +87,7 @@ def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
         return
 
     # One-shot sync: load config, open DB, run task sync
+    # TODO: Add run_calendar_poll() here when calendar wiring is complete (§6.7)
     from nstd.config import ConfigurationError, load_config
     from nstd.daemon import run_task_sync
     from nstd.db import create_schema, get_connection
