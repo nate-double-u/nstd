@@ -557,31 +557,82 @@ class TestPollCalendarsDryRun:
 
         mock_mark.assert_not_called()
         assert result["past_blocks_marked"] == 0
+        out = capsys.readouterr().out
+        assert "[DRY-RUN] No past calendar blocks to mark" in out
         conn.close()
 
-    def test_dry_run_prints_dry_run_line(self, capsys):
-        """dry_run=True must print a [DRY-RUN] line for skipped writes."""
+    def test_dry_run_prints_per_block_lines(self, capsys):
+        """dry_run=True must print one [DRY-RUN] line per past block."""
         from unittest.mock import MagicMock
 
+        from freezegun import freeze_time
+
         from nstd.calendar.gcal import poll_calendars
-        from nstd.db import create_schema, get_connection
+        from nstd.db import create_schema, get_connection, upsert_task
 
         conn = get_connection(":memory:")
         create_schema(conn)
 
+        # Insert a task and two past calendar blocks
+        upsert_task(
+            conn,
+            {
+                "id": "gh:test/1",
+                "source": "github",
+                "source_id": "1",
+                "source_url": "https://github.com/test/1",
+                "title": "Test task",
+                "body": None,
+                "state": "open",
+                "assignee": None,
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-20T00:00:00Z",
+                "updated_at": "2026-03-20T00:00:00Z",
+            },
+        )
+        now_str = "2026-03-25T12:00:00+00:00"
+        past1 = "2026-03-24T10:00:00+00:00"
+        past1_end = "2026-03-24T12:00:00+00:00"
+        past2 = "2026-03-23T14:00:00+00:00"
+        past2_end = "2026-03-23T16:00:00+00:00"
+        conn.execute(
+            "INSERT INTO calendar_blocks (task_id, gcal_event_id, start_dt, end_dt, "
+            "duration_hours, is_past, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+            ("gh:test/1", "evt_a", past1, past1_end, 2.0, now_str),
+        )
+        conn.execute(
+            "INSERT INTO calendar_blocks (task_id, gcal_event_id, start_dt, end_dt, "
+            "duration_hours, is_past, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+            ("gh:test/1", "evt_b", past2, past2_end, 2.0, now_str),
+        )
+        conn.commit()
+
         mock_service = MagicMock()
         mock_service.events.return_value.list.return_value.execute.return_value = {"items": []}
 
-        poll_calendars(
-            conn,
-            service=mock_service,
-            nstd_calendar_id="cal_nstd",
-            observe_calendar_ids=[],
-            dry_run=True,
-        )
+        with freeze_time("2026-03-25T12:00:00Z"):
+            result = poll_calendars(
+                conn,
+                service=mock_service,
+                nstd_calendar_id="cal_nstd",
+                observe_calendar_ids=[],
+                dry_run=True,
+            )
 
         out = capsys.readouterr().out
-        assert "[DRY-RUN]" in out
+        assert out.count("[DRY-RUN] Would mark calendar block as past:") == 2
+        assert "block_id=1" in out
+        assert "block_id=2" in out
+        assert result["past_blocks_marked"] == 2
+        # Verify no actual DB writes occurred
+        unmarked = conn.execute(
+            "SELECT COUNT(*) FROM calendar_blocks WHERE is_past = 0"
+        ).fetchone()[0]
+        assert unmarked == 2
         conn.close()
 
     def test_dry_run_still_fetches_events(self):

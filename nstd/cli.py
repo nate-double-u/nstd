@@ -137,17 +137,17 @@ def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
 
 
 def _print_dry_run_summary(result: dict) -> None:
-    """Print the dry-run summary block per spec §6.7.
-
-    Note: links_skipped, write-backs, and calendar write counters will be
-    added when those operations are wired into the sync orchestration.
-    """
+    """Print the dry-run summary block per spec §6.7."""
     click.echo("")
     click.echo("--- Dry-run summary ---")
-    click.echo(f"Tasks fetched:       {result['total_fetched']}")
-    click.echo(f"Upserts skipped:     {result['total_updated']}")
-    if result["errors"]:
-        click.echo(f"Errors:            {len(result['errors'])}")
+    click.echo(f"Tasks fetched:           {result.get('total_fetched', 0)}")
+    click.echo(f"Upserts skipped:         {result.get('total_updated', 0)}")
+    click.echo(f"Links skipped:           {result.get('links_skipped', 0)}")
+    click.echo(f"Write-backs skipped:     {result.get('writebacks_skipped', 0)}")
+    click.echo(f"Calendar writes skipped: {result.get('calendar_writes_skipped', 0)}")
+    errors = result.get("errors")
+    if errors:
+        click.echo(f"Errors:                  {len(errors)}")
 
 
 @cli.command()

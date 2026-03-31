@@ -181,6 +181,9 @@ class TestSyncCommand:
             mock_sync.return_value = {
                 "total_fetched": 14,
                 "total_updated": 14,
+                "links_skipped": 3,
+                "writebacks_skipped": 1,
+                "calendar_writes_skipped": 2,
                 "errors": [],
                 "log_id": None,
             }
@@ -190,6 +193,9 @@ class TestSyncCommand:
         assert "no writes" in result.output.lower()
         assert "Dry-run summary" in result.output
         assert "Tasks fetched:" in result.output
+        assert "Links skipped:" in result.output
+        assert "Write-backs skipped:" in result.output
+        assert "Calendar writes skipped:" in result.output
         mock_sync.assert_called_once()
         assert mock_sync.call_args[1]["dry_run"] is True
 

@@ -239,8 +239,22 @@ def poll_calendars(
     """
     # Step 1: Mark past blocks (suppressed in dry-run per §6.7)
     if dry_run:
-        print("[DRY-RUN] Would mark past calendar blocks")
+        # Compute which blocks would be marked, log each one, but skip the UPDATE.
+        now = datetime.now(UTC)
+        rows = conn.execute("SELECT id, end_dt FROM calendar_blocks WHERE is_past = 0").fetchall()
         past_count = 0
+        for row in rows:
+            try:
+                end = dtparser.isoparse(row["end_dt"])
+                if end.tzinfo is None:
+                    end = end.replace(tzinfo=UTC)
+                if end < now:
+                    print(f"[DRY-RUN] Would mark calendar block as past: block_id={row['id']}")
+                    past_count += 1
+            except (ValueError, TypeError):
+                continue
+        if past_count == 0:
+            print("[DRY-RUN] No past calendar blocks to mark")
     else:
         past_count = mark_past_blocks(conn)
 

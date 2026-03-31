@@ -462,7 +462,7 @@ class TestSyncGithubDryRun:
 
     @patch("nstd.sync.github._fetch_issues_rest")
     def test_dry_run_skips_task_link(self, mock_fetch, db, github_config, capsys):
-        """dry_run=True must not create task_link rows."""
+        """dry_run=True must not create task_link rows; must log both upsert and link."""
         from nstd.sync.github import sync_github
 
         mock_fetch.return_value = [
@@ -487,4 +487,7 @@ class TestSyncGithubDryRun:
         assert len(links) == 0
         out = capsys.readouterr().out
         assert "[DRY-RUN]" in out
+        # Must log both the Jira placeholder upsert and the task_link creation
+        assert "Would upsert task: jira:CNCFSD-99" in out
+        assert "[Jira] CNCFSD-99" in out
         assert "task_link" in out.lower() or "↔" in out

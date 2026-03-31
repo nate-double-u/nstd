@@ -231,29 +231,32 @@ def sync_github(
             jira_url, jira_key = extract_jira_link(issue.get("body"))
             if jira_key:
                 jira_task_id = f"jira:{jira_key}"
+                jira_placeholder = {
+                    "id": jira_task_id,
+                    "source": "jira",
+                    "source_id": jira_key,
+                    "source_url": jira_url,
+                    "title": f"[Jira] {jira_key}",
+                    "body": None,
+                    "state": "open",
+                    "assignee": None,
+                    "priority": None,
+                    "size": None,
+                    "estimate_hours": None,
+                    "start_date": None,
+                    "due_date": None,
+                    "created_at": None,
+                    "updated_at": None,
+                }
                 if dry_run:
+                    print(
+                        f"[DRY-RUN] Would upsert task: {jira_placeholder['id']} "
+                        f'"{jira_placeholder["title"]}" (source: jira)'
+                    )
                     print(
                         f"[DRY-RUN] Would create task_link: {task['id']} ↔ {jira_task_id} (mirrors)"
                     )
                 else:
-                    # Ensure a placeholder task exists for the Jira side of the link
-                    jira_placeholder = {
-                        "id": jira_task_id,
-                        "source": "jira",
-                        "source_id": jira_key,
-                        "source_url": jira_url,
-                        "title": f"[Jira] {jira_key}",
-                        "body": None,
-                        "state": "open",
-                        "assignee": None,
-                        "priority": None,
-                        "size": None,
-                        "estimate_hours": None,
-                        "start_date": None,
-                        "due_date": None,
-                        "created_at": None,
-                        "updated_at": None,
-                    }
                     upsert_task(conn, jira_placeholder)
                     create_task_link(conn, task["id"], jira_task_id, "mirrors")
 
