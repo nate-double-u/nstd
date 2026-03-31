@@ -8,7 +8,7 @@ Spec references:
 from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -172,11 +172,11 @@ class TestSyncCommand:
 
     def test_sync_dry_run_full(self, runner):
         """nstd sync --dry-run should run sync with dry_run=True and print summary."""
+        mock_conn = MagicMock()
         with (
             patch("nstd.config.load_config"),
             patch("nstd.daemon.run_task_sync") as mock_sync,
-            patch("nstd.db.get_connection") as mock_conn,
-            patch("nstd.db.create_schema"),
+            patch("nstd.cli._safe_get_readonly_connection", return_value=mock_conn),
         ):
             mock_sync.return_value = {
                 "total_fetched": 14,
@@ -184,8 +184,6 @@ class TestSyncCommand:
                 "errors": [],
                 "log_id": None,
             }
-            mock_conn.return_value.__enter__ = lambda s: s
-            mock_conn.return_value.__exit__ = lambda s, *a: None
             result = runner.invoke(cli, ["sync", "--dry-run"])
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
@@ -197,11 +195,11 @@ class TestSyncCommand:
 
     def test_sync_dry_run_with_source(self, runner):
         """nstd sync --dry-run --source github should pass both flags through."""
+        mock_conn = MagicMock()
         with (
             patch("nstd.config.load_config"),
             patch("nstd.daemon.run_task_sync") as mock_sync,
-            patch("nstd.db.get_connection") as mock_conn,
-            patch("nstd.db.create_schema"),
+            patch("nstd.cli._safe_get_readonly_connection", return_value=mock_conn),
         ):
             mock_sync.return_value = {
                 "total_fetched": 5,
@@ -209,8 +207,6 @@ class TestSyncCommand:
                 "errors": [],
                 "log_id": None,
             }
-            mock_conn.return_value.__enter__ = lambda s: s
-            mock_conn.return_value.__exit__ = lambda s, *a: None
             result = runner.invoke(cli, ["sync", "--dry-run", "--source", "github"])
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
@@ -234,6 +230,16 @@ class TestSyncCommand:
             result = runner.invoke(cli, ["sync"])
         assert result.exit_code != 0
         assert "configuration error" in result.output.lower()
+
+    def test_sync_dry_run_no_db(self, runner):
+        """nstd sync --dry-run should fail gracefully when DB doesn't exist."""
+        with (
+            patch("nstd.config.load_config"),
+            patch("nstd.cli._safe_get_readonly_connection", return_value=None),
+        ):
+            result = runner.invoke(cli, ["sync", "--dry-run"])
+        assert result.exit_code != 0
+        assert "not initialized" in result.output.lower()
 
     def test_sync_reports_errors(self, runner):
         """nstd sync should print errors from sync sources."""

@@ -95,9 +95,18 @@ def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
         raise click.ClickException(f"Configuration error: {e}") from None
 
     db_path = _get_db_path()
-    _DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    conn = get_connection(db_path)
-    create_schema(conn)
+
+    if dry_run:
+        # Dry-run is strictly read-only (§6.7): no schema creation, no DB writes.
+        conn = _safe_get_readonly_connection(db_path)
+        if conn is None:
+            raise click.ClickException(
+                "Database not initialized. Run 'nstd sync' once without --dry-run first."
+            )
+    else:
+        _DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        conn = get_connection(db_path)
+        create_schema(conn)
 
     try:
         if dry_run:
@@ -128,11 +137,15 @@ def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
 
 
 def _print_dry_run_summary(result: dict) -> None:
-    """Print the dry-run summary block per spec §6.7."""
+    """Print the dry-run summary block per spec §6.7.
+
+    Note: links_skipped, write-backs, and calendar write counters will be
+    added when those operations are wired into the sync orchestration.
+    """
     click.echo("")
     click.echo("--- Dry-run summary ---")
-    click.echo(f"Tasks fetched:     {result['total_fetched']}")
-    click.echo(f"Upserts skipped:   {result['total_updated']}")
+    click.echo(f"Tasks fetched:       {result['total_fetched']}")
+    click.echo(f"Upserts skipped:     {result['total_updated']}")
     if result["errors"]:
         click.echo(f"Errors:            {len(result['errors'])}")
 

@@ -255,6 +255,8 @@ class TestRunTaskSync:
         log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
         assert log["source"] == "jira"
 
+
+class TestRunTaskSyncDryRun:
     """Tests for run_task_sync dry-run mode (§6.7)."""
 
     @patch("nstd.daemon._sync_asana")
