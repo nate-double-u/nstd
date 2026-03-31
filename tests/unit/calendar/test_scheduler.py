@@ -345,6 +345,7 @@ class TestSessionSuggestion:
 class TestSchedulingNudges:
     """Test scheduling nudge evaluation (§8.5.4)."""
 
+    @freeze_time("2026-03-20")
     def test_unscheduled_task_with_estimate(self):
         """Open task with estimate and no future blocks → 'unscheduled'."""
         from nstd.calendar.scheduler import evaluate_nudge
@@ -360,6 +361,7 @@ class TestSchedulingNudges:
 
         assert nudge == "unscheduled"
 
+    @freeze_time("2026-03-20")
     def test_needs_estimate_nudge(self):
         """Open task with due date but no estimate → 'needs_estimate'."""
         from nstd.calendar.scheduler import evaluate_nudge
@@ -375,6 +377,7 @@ class TestSchedulingNudges:
 
         assert nudge == "needs_estimate"
 
+    @freeze_time("2026-03-20")
     def test_time_elapsed_nudge(self):
         """Open task with all blocks in the past → 'time_elapsed'."""
         from nstd.calendar.scheduler import evaluate_nudge
@@ -406,6 +409,7 @@ class TestSchedulingNudges:
 
         assert nudge == "overdue"
 
+    @freeze_time("2026-03-20")
     def test_on_track_no_nudge(self):
         """Task with future blocks covering estimate → None (on track)."""
         from nstd.calendar.scheduler import evaluate_nudge
@@ -436,6 +440,7 @@ class TestSchedulingNudges:
 
         assert nudge is None
 
+    @freeze_time("2026-03-20")
     def test_partially_scheduled_no_nudge(self):
         """Task with some future blocks but not covering full estimate → no nudge (for now)."""
         from nstd.calendar.scheduler import evaluate_nudge
