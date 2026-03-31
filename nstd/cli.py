@@ -75,14 +75,79 @@ def setup() -> None:
     "--source", type=click.Choice(["github", "jira", "asana"]), help="Sync only one source."
 )
 @click.option("--daemon", is_flag=True, help="Run continuously (used by launchd).")
-def sync(source: str | None, daemon: bool) -> None:
+@click.option(
+    "--dry-run", is_flag=True, help="Preview task sync: fetch from sources, skip all writes."
+)
+def sync(source: str | None, daemon: bool, dry_run: bool) -> None:
     """Run a sync cycle (one-shot or continuous)."""
+    if daemon and dry_run:
+        raise click.UsageError("--dry-run cannot be used with --daemon.")
     if daemon:
         click.echo("Starting daemon mode...")
-    elif source:
-        click.echo(f"Syncing {source}...")
+        return
+
+    # One-shot sync: load config, open DB, run task sync
+    # TODO: Add run_calendar_poll() here when calendar wiring is complete (§6.7)
+    from nstd.config import ConfigurationError, load_config
+    from nstd.daemon import run_task_sync
+    from nstd.db import create_schema, get_connection
+
+    try:
+        config = load_config()
+    except ConfigurationError as e:
+        raise click.ClickException(f"Configuration error: {e}") from None
+
+    db_path = _get_db_path()
+
+    if dry_run:
+        # Dry-run is strictly read-only (§6.7): no schema creation, no DB writes.
+        conn = _safe_get_readonly_connection(db_path)
+        if conn is None:
+            raise click.ClickException(
+                "Database not initialized. Run 'nstd sync' once without --dry-run first."
+            )
     else:
-        click.echo("Running full sync...")
+        _DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        conn = get_connection(db_path)
+        create_schema(conn)
+
+    try:
+        if dry_run:
+            if source:
+                click.echo(f"Dry run: syncing {source} (no writes)...")
+            else:
+                click.echo("Dry run: running full sync (no writes)...")
+        elif source:
+            click.echo(f"Syncing {source}...")
+        else:
+            click.echo("Running full sync...")
+
+        result = run_task_sync(conn, config, dry_run=dry_run, source=source)
+
+        if dry_run:
+            _print_dry_run_summary(result)
+        else:
+            click.echo(
+                f"Sync complete: fetched={result['total_fetched']} "
+                f"updated={result['total_updated']}"
+            )
+
+        if result["errors"]:
+            for err in result["errors"]:
+                click.echo(f"  Error: {err}", err=True)
+    finally:
+        conn.close()
+
+
+def _print_dry_run_summary(result: dict) -> None:
+    """Print the dry-run summary block per spec §6.7."""
+    click.echo("")
+    click.echo("--- Dry-run summary ---")
+    click.echo(f"Tasks fetched:   {result.get('total_fetched', 0)}")
+    click.echo(f"Upserts skipped: {result.get('total_updated', 0)}")
+    errors = result.get("errors")
+    if errors:
+        click.echo(f"Errors:          {len(errors)}")
 
 
 @cli.command()

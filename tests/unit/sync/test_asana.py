@@ -147,3 +147,64 @@ class TestAsanaSync:
         stats = sync_asana(db, asana_config, token="fake-token")
 
         assert len(stats["errors"]) > 0
+
+
+class TestSyncAsanaDryRun:
+    """§6.7: sync_asana dry-run mode suppresses all DB writes."""
+
+    @patch("nstd.sync.asana._fetch_assigned_tasks")
+    @patch("nstd.sync.asana._fetch_project_tasks")
+    def test_dry_run_skips_upsert(self, mock_project, mock_assigned, db, asana_config, capsys):
+        """dry_run=True must not call upsert_task."""
+        from nstd.sync.asana import sync_asana
+
+        mock_assigned.return_value = [
+            {
+                "gid": "4001",
+                "name": "Dry run Asana task",
+                "completed": False,
+                "due_on": None,
+                "created_at": "2026-03-01T00:00:00.000Z",
+                "modified_at": "2026-03-15T00:00:00.000Z",
+                "permalink_url": "https://app.asana.com/0/0/4001",
+                "assignee": {"name": "Nate"},
+                "tags": [],
+            }
+        ]
+        mock_project.return_value = []
+
+        stats = sync_asana(db, asana_config, token="fake-token", dry_run=True)
+
+        rows = db.execute("SELECT * FROM tasks").fetchall()
+        assert len(rows) == 0
+        assert stats["fetched"] == 1
+        assert stats["updated"] == 1
+
+    @patch("nstd.sync.asana._fetch_assigned_tasks")
+    @patch("nstd.sync.asana._fetch_project_tasks")
+    def test_dry_run_prints_dry_run_line(
+        self, mock_project, mock_assigned, db, asana_config, capsys
+    ):
+        """dry_run=True must print [DRY-RUN] lines to stdout."""
+        from nstd.sync.asana import sync_asana
+
+        mock_assigned.return_value = [
+            {
+                "gid": "4002",
+                "name": "Preview Asana task",
+                "completed": False,
+                "due_on": None,
+                "created_at": "2026-03-01T00:00:00.000Z",
+                "modified_at": "2026-03-15T00:00:00.000Z",
+                "permalink_url": "https://app.asana.com/0/0/4002",
+                "assignee": {"name": "Nate"},
+                "tags": [],
+            }
+        ]
+        mock_project.return_value = []
+
+        sync_asana(db, asana_config, token="fake-token", dry_run=True)
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "Preview Asana task" in out

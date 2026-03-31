@@ -71,6 +71,7 @@ def sync_jira(
     conn: sqlite3.Connection,
     config: JiraConfig,
     token: str,
+    dry_run: bool = False,
 ) -> dict:
     """Run Jira sync: fetch assigned issues via JQL, upsert to DB.
 
@@ -78,6 +79,7 @@ def sync_jira(
         conn: Database connection.
         config: Jira configuration.
         token: Jira API token.
+        dry_run: If True, suppress all DB writes and print [DRY-RUN] lines.
 
     Returns:
         Stats dict with 'fetched', 'updated', and 'errors' keys.
@@ -118,7 +120,13 @@ def sync_jira(
 
         for issue in issues:
             task = jira_issue_to_task(issue, config)
-            upsert_task(conn, task)
+            if dry_run:
+                print(
+                    f"[DRY-RUN] Would upsert task: {task['id']} "
+                    f'"{task["title"]}" (status: {task["state"]})'
+                )
+            else:
+                upsert_task(conn, task)
             stats["updated"] += 1
 
     except Exception as e:

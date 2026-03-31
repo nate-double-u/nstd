@@ -188,3 +188,81 @@ class TestJiraWriteback:
 
         assert result["success"] is False
         assert "error" in result
+
+
+class TestJiraWritebackDryRun:
+    """Dry-run mode for Jira write-back (§6.7)."""
+
+    @patch("nstd.writeback.jira._get_jira_client")
+    def test_dry_run_skips_api_call(self, mock_client_factory, db, capsys):
+        """dry_run=True must not call the Jira API."""
+        from nstd.writeback.jira import writeback_jira_done
+
+        result = writeback_jira_done(
+            db,
+            github_task_id="gh:cncf/staff:100",
+            token="fake-token",
+            server_url="https://cncfservicedesk.atlassian.net",
+            username="nate@linuxfoundation.org",
+            dry_run=True,
+        )
+
+        mock_client_factory.assert_not_called()
+        assert result["success"] is True
+
+    @patch("nstd.writeback.jira._get_jira_client")
+    def test_dry_run_prints_dry_run_line(self, mock_client_factory, db, capsys):
+        """dry_run=True must print a [DRY-RUN] line to stdout."""
+        from nstd.writeback.jira import writeback_jira_done
+
+        writeback_jira_done(
+            db,
+            github_task_id="gh:cncf/staff:100",
+            token="fake-token",
+            server_url="https://cncfservicedesk.atlassian.net",
+            username="nate@linuxfoundation.org",
+            dry_run=True,
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "CNCFSD-200" in out
+
+    def test_dry_run_with_no_linked_task_is_noop(self, db, capsys):
+        """dry_run=True with no linked task should be a noop (skipped)."""
+        from nstd.db import upsert_task
+        from nstd.writeback.jira import writeback_jira_done
+
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:777",
+                "source": "github",
+                "source_id": "777",
+                "source_url": "https://github.com/cncf/staff/issues/777",
+                "title": "Unlinked",
+                "body": "",
+                "state": "closed",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
+
+        result = writeback_jira_done(
+            db,
+            "gh:cncf/staff:777",
+            "fake-token",
+            "https://cncfservicedesk.atlassian.net",
+            "nate@linuxfoundation.org",
+            dry_run=True,
+        )
+
+        out = capsys.readouterr().out
+        assert result["skipped"] is True
+        assert "[DRY-RUN]" not in out

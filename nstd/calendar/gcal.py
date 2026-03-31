@@ -159,6 +159,28 @@ def event_date(event: dict) -> str | None:
     return None
 
 
+def _find_past_block_ids(conn: sqlite3.Connection) -> list[dict]:
+    """Return blocks with end_dt in the past that haven't been marked yet.
+
+    Shared by mark_past_blocks (which UPDATEs) and poll_calendars dry-run
+    (which only logs). Each dict has 'id' and 'end_dt' keys.
+    """
+    now = datetime.now(UTC)
+    rows = conn.execute("SELECT id, end_dt FROM calendar_blocks WHERE is_past = 0").fetchall()
+
+    past = []
+    for row in rows:
+        try:
+            end = dtparser.isoparse(row["end_dt"])
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=UTC)
+            if end < now:
+                past.append({"id": row["id"], "end_dt": row["end_dt"]})
+        except (ValueError, TypeError):
+            continue
+    return past
+
+
 def mark_past_blocks(conn: sqlite3.Connection) -> int:
     """Mark calendar blocks with end_dt in the past as is_past = 1.
 
@@ -167,25 +189,12 @@ def mark_past_blocks(conn: sqlite3.Connection) -> int:
     Returns:
         Number of blocks marked as past.
     """
-    now = datetime.now(UTC)
-    rows = conn.execute("SELECT id, end_dt FROM calendar_blocks WHERE is_past = 0").fetchall()
-
-    marked = 0
-    for row in rows:
-        try:
-            end = dtparser.isoparse(row["end_dt"])
-            # Ensure timezone-aware comparison
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=UTC)
-            if end < now:
-                conn.execute("UPDATE calendar_blocks SET is_past = 1 WHERE id = ?", (row["id"],))
-                marked += 1
-        except (ValueError, TypeError):
-            continue
-
-    if marked:
+    past = _find_past_block_ids(conn)
+    for block in past:
+        conn.execute("UPDATE calendar_blocks SET is_past = 1 WHERE id = ?", (block["id"],))
+    if past:
         conn.commit()
-    return marked
+    return len(past)
 
 
 def detect_orphaned_blocks(conn: sqlite3.Connection) -> list[dict]:
@@ -216,10 +225,11 @@ def poll_calendars(
     nstd_calendar_id: str,
     observe_calendar_ids: list[str],
     days_ahead: int = 14,
+    dry_run: bool = False,
 ) -> dict:
     """Run a full calendar poll cycle.
 
-    1. Mark past blocks in the database
+    1. Mark past blocks in the database (skipped in dry-run)
     2. Fetch events from NSTD Planning calendar
     3. Fetch events from all observed calendars
     4. Detect orphaned blocks
@@ -230,13 +240,22 @@ def poll_calendars(
         nstd_calendar_id: Calendar ID for the NSTD Planning calendar.
         observe_calendar_ids: List of calendar IDs to observe.
         days_ahead: Number of days ahead to look.
+        dry_run: If True, suppress DB writes and print [DRY-RUN] lines.
 
     Returns:
         Dict with keys: nstd_events, observed_events, orphaned_blocks,
                         past_blocks_marked
     """
-    # Step 1: Mark past blocks
-    past_count = mark_past_blocks(conn)
+    # Step 1: Mark past blocks (suppressed in dry-run per §6.7)
+    if dry_run:
+        past = _find_past_block_ids(conn)
+        for block in past:
+            print(f"[DRY-RUN] Would mark calendar block as past: block_id={block['id']}")
+        if not past:
+            print("[DRY-RUN] No past calendar blocks to mark")
+        past_count = len(past)
+    else:
+        past_count = mark_past_blocks(conn)
 
     # Step 2: Fetch NSTD Planning events
     nstd_events = fetch_calendar_events(service, nstd_calendar_id, days_ahead)

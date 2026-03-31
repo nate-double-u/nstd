@@ -495,3 +495,181 @@ class TestPastBlockWithoutFlag:
 
         # Should not call GCal API for this actually-past block
         mock_service.events.return_value.get.assert_not_called()
+
+
+# --- Dry-run mode tests ---
+
+
+class TestCreateCalendarBlockDryRun:
+    """§6.7: create_calendar_block dry-run suppresses GCal API and DB writes."""
+
+    def test_dry_run_skips_api_call(self, conn, capsys):
+        """dry_run=True must not call GCal API insert."""
+        task = _make_task("gh:cncf/staff:901")
+        upsert_task(conn, task)
+        mock_service = MagicMock()
+
+        create_calendar_block(
+            conn,
+            mock_service,
+            "cal_nstd",
+            task,
+            "2026-03-22T10:00:00+00:00",
+            "2026-03-22T12:00:00+00:00",
+            2.0,
+            dry_run=True,
+        )
+
+        mock_service.events.return_value.insert.assert_not_called()
+
+    def test_dry_run_skips_db_write(self, conn, capsys):
+        """dry_run=True must not insert a calendar_block row."""
+        task = _make_task("gh:cncf/staff:902")
+        upsert_task(conn, task)
+        mock_service = MagicMock()
+
+        create_calendar_block(
+            conn,
+            mock_service,
+            "cal_nstd",
+            task,
+            "2026-03-22T10:00:00+00:00",
+            "2026-03-22T12:00:00+00:00",
+            2.0,
+            dry_run=True,
+        )
+
+        rows = conn.execute("SELECT * FROM calendar_blocks").fetchall()
+        assert len(rows) == 0
+
+    def test_dry_run_prints_dry_run_line(self, conn, capsys):
+        """dry_run=True must print [DRY-RUN] line to stdout."""
+        task = _make_task("gh:cncf/staff:903", title="Fix onboarding flow")
+        upsert_task(conn, task)
+        mock_service = MagicMock()
+
+        create_calendar_block(
+            conn,
+            mock_service,
+            "cal_nstd",
+            task,
+            "2026-03-22T10:00:00+00:00",
+            "2026-03-22T12:00:00+00:00",
+            2.0,
+            dry_run=True,
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "Fix onboarding flow" in out
+
+    def test_dry_run_returns_none_ids(self, conn, capsys):
+        """dry_run=True should return block dict with id=None, gcal_event_id=None."""
+        task = _make_task("gh:cncf/staff:904")
+        upsert_task(conn, task)
+        mock_service = MagicMock()
+
+        result = create_calendar_block(
+            conn,
+            mock_service,
+            "cal_nstd",
+            task,
+            "2026-03-22T10:00:00+00:00",
+            "2026-03-22T12:00:00+00:00",
+            2.0,
+            dry_run=True,
+        )
+
+        assert result["id"] is None
+        assert result["gcal_event_id"] is None
+        assert result["task_id"] == "gh:cncf/staff:904"
+
+    def test_dry_run_non_github_still_raises(self, conn):
+        """dry_run=True still raises ValueError for non-GitHub tasks."""
+        task = _make_task("jira:CNCF-1", source="jira")
+        mock_service = MagicMock()
+
+        with pytest.raises(ValueError, match="Only GitHub tasks"):
+            create_calendar_block(
+                conn,
+                mock_service,
+                "cal_nstd",
+                task,
+                "2026-03-22T10:00:00+00:00",
+                "2026-03-22T12:00:00+00:00",
+                2.0,
+                dry_run=True,
+            )
+
+
+class TestMarkTaskBlocksCompletedDryRun:
+    """§6.7: mark_task_blocks_completed dry-run suppresses GCal updates."""
+
+    def test_dry_run_skips_api_call(self, conn, capsys):
+        """dry_run=True must not call GCal API update."""
+        task = _make_task("gh:cncf/staff:910")
+        upsert_task(conn, task)
+        now = datetime.now(UTC)
+        future_start = (now + timedelta(hours=2)).isoformat()
+        future_end = (now + timedelta(hours=3)).isoformat()
+        insert_calendar_block(conn, "gh:cncf/staff:910", "evt_dry_1", future_start, future_end, 1.0)
+
+        mock_service = MagicMock()
+        count = mark_task_blocks_completed(
+            conn, mock_service, "cal_nstd", "gh:cncf/staff:910", dry_run=True
+        )
+
+        mock_service.events.return_value.update.assert_not_called()
+        assert count == 1
+
+    def test_dry_run_prints_dry_run_line(self, conn, capsys):
+        """dry_run=True must print [DRY-RUN] line to stdout."""
+        task = _make_task("gh:cncf/staff:911")
+        upsert_task(conn, task)
+        now = datetime.now(UTC)
+        future_start = (now + timedelta(hours=2)).isoformat()
+        future_end = (now + timedelta(hours=3)).isoformat()
+        insert_calendar_block(conn, "gh:cncf/staff:911", "evt_dry_2", future_start, future_end, 1.0)
+
+        mock_service = MagicMock()
+        mark_task_blocks_completed(
+            conn, mock_service, "cal_nstd", "gh:cncf/staff:911", dry_run=True
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+
+
+class TestUpdateBlockDescriptionDryRun:
+    """§6.7: update_block_description dry-run suppresses GCal updates."""
+
+    def test_dry_run_skips_api_call(self, conn, capsys):
+        """dry_run=True must not call GCal API update."""
+        task = _make_task("gh:cncf/staff:920")
+        upsert_task(conn, task)
+        now = datetime.now(UTC)
+        future_start = (now + timedelta(hours=2)).isoformat()
+        future_end = (now + timedelta(hours=3)).isoformat()
+        insert_calendar_block(conn, "gh:cncf/staff:920", "evt_dry_3", future_start, future_end, 1.0)
+
+        mock_service = MagicMock()
+        count = update_block_description(conn, mock_service, "cal_nstd", task, dry_run=True)
+
+        mock_service.events.return_value.update.assert_not_called()
+        assert count == 1
+
+    def test_dry_run_prints_dry_run_line(self, conn, capsys):
+        """dry_run=True must print [DRY-RUN] line to stdout."""
+        task = _make_task("gh:cncf/staff:921", title="Update me")
+        upsert_task(conn, task)
+        now = datetime.now(UTC)
+        future_start = (now + timedelta(hours=2)).isoformat()
+        future_end = (now + timedelta(hours=3)).isoformat()
+        insert_calendar_block(conn, "gh:cncf/staff:921", "evt_dry_4", future_start, future_end, 1.0)
+
+        mock_service = MagicMock()
+        update_block_description(conn, mock_service, "cal_nstd", task, dry_run=True)
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "Update me" in out

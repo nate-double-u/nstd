@@ -151,3 +151,62 @@ class TestJiraSync:
 
         assert len(stats["errors"]) > 0
         assert "API timeout" in stats["errors"][0]
+
+
+class TestSyncJiraDryRun:
+    """§6.7: sync_jira dry-run mode suppresses all DB writes."""
+
+    @patch("nstd.sync.jira._get_jira_client")
+    def test_dry_run_skips_upsert(self, mock_client_factory, db, jira_config, capsys):
+        """dry_run=True must not call upsert_task."""
+        from nstd.sync.jira import sync_jira
+
+        mock_client = MagicMock()
+        mock_client_factory.return_value = mock_client
+
+        issue = MagicMock()
+        issue.key = "CNCFSD-500"
+        fields = issue.fields
+        fields.summary = "Dry run Jira issue"
+        fields.description = None
+        fields.status.name = "To Do"
+        fields.priority.name = "Medium"
+        fields.assignee.name = "nate"
+        fields.created = "2026-03-01T00:00:00.000+0000"
+        fields.updated = "2026-03-15T00:00:00.000+0000"
+        fields.duedate = None
+        mock_client.search_issues.return_value = [issue]
+
+        stats = sync_jira(db, jira_config, token="fake-token", dry_run=True)
+
+        rows = db.execute("SELECT * FROM tasks").fetchall()
+        assert len(rows) == 0
+        assert stats["fetched"] == 1
+        assert stats["updated"] == 1
+
+    @patch("nstd.sync.jira._get_jira_client")
+    def test_dry_run_prints_dry_run_line(self, mock_client_factory, db, jira_config, capsys):
+        """dry_run=True must print [DRY-RUN] lines to stdout."""
+        from nstd.sync.jira import sync_jira
+
+        mock_client = MagicMock()
+        mock_client_factory.return_value = mock_client
+
+        issue = MagicMock()
+        issue.key = "CNCFSD-501"
+        fields = issue.fields
+        fields.summary = "Preview Jira task"
+        fields.description = None
+        fields.status.name = "In Progress"
+        fields.priority.name = "High"
+        fields.assignee.name = "nate"
+        fields.created = "2026-03-01T00:00:00.000+0000"
+        fields.updated = "2026-03-15T00:00:00.000+0000"
+        fields.duedate = None
+        mock_client.search_issues.return_value = [issue]
+
+        sync_jira(db, jira_config, token="fake-token", dry_run=True)
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "Preview Jira task" in out

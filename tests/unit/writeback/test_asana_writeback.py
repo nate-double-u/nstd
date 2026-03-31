@@ -124,3 +124,70 @@ class TestAsanaWriteback:
 
         assert result["success"] is False
         assert "error" in result
+
+
+class TestAsanaWritebackDryRun:
+    """Dry-run mode for Asana write-back (§6.7)."""
+
+    @patch("nstd.writeback.asana._get_asana_client")
+    def test_dry_run_skips_api_call(self, mock_client_factory, db, capsys):
+        """dry_run=True must not call the Asana API."""
+        from nstd.writeback.asana import writeback_asana_done
+
+        result = writeback_asana_done(
+            db,
+            github_task_id="gh:cncf/staff:100",
+            token="fake-token",
+            dry_run=True,
+        )
+
+        mock_client_factory.assert_not_called()
+        assert result["success"] is True
+
+    @patch("nstd.writeback.asana._get_asana_client")
+    def test_dry_run_prints_dry_run_line(self, mock_client_factory, db, capsys):
+        """dry_run=True must print a [DRY-RUN] line to stdout."""
+        from nstd.writeback.asana import writeback_asana_done
+
+        writeback_asana_done(
+            db,
+            github_task_id="gh:cncf/staff:100",
+            token="fake-token",
+            dry_run=True,
+        )
+
+        out = capsys.readouterr().out
+        assert "[DRY-RUN]" in out
+        assert "1200000000001" in out
+
+    def test_dry_run_with_no_linked_task_is_noop(self, db, capsys):
+        """dry_run=True with no linked task should be a noop (skipped)."""
+        from nstd.db import upsert_task
+        from nstd.writeback.asana import writeback_asana_done
+
+        upsert_task(
+            db,
+            {
+                "id": "gh:cncf/staff:888",
+                "source": "github",
+                "source_id": "888",
+                "source_url": "https://github.com/cncf/staff/issues/888",
+                "title": "Unlinked",
+                "body": "",
+                "state": "closed",
+                "assignee": "nate-double-u",
+                "priority": None,
+                "size": None,
+                "estimate_hours": None,
+                "start_date": None,
+                "due_date": None,
+                "created_at": "2026-03-01T00:00:00Z",
+                "updated_at": "2026-03-15T00:00:00Z",
+            },
+        )
+
+        result = writeback_asana_done(db, "gh:cncf/staff:888", "fake-token", dry_run=True)
+
+        out = capsys.readouterr().out
+        assert result["skipped"] is True
+        assert "[DRY-RUN]" not in out
