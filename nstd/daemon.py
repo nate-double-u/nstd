@@ -174,6 +174,12 @@ def run_task_sync(
         ("asana", "Asana", _sync_asana),
     ]
 
+    valid_source_keys = {key for key, _, _ in all_sources}
+    if source is not None and source not in valid_source_keys:
+        raise ValueError(
+            f"Unknown source '{source}'. Expected one of: " + ", ".join(sorted(valid_source_keys))
+        )
+
     sync_sources = [
         (display, fn) for key, display, fn in all_sources if source is None or key == source
     ]

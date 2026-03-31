@@ -255,6 +255,12 @@ class TestRunTaskSync:
         log = conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone()
         assert log["source"] == "jira"
 
+    def test_invalid_source_raises(self, conn):
+        """Unknown source value should raise ValueError."""
+        config = MagicMock()
+        with pytest.raises(ValueError, match="Unknown source 'bogus'"):
+            run_task_sync(conn, config, source="bogus")
+
 
 class TestRunTaskSyncDryRun:
     """Tests for run_task_sync dry-run mode (§6.7)."""
