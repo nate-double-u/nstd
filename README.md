@@ -11,7 +11,7 @@ Google Calendar.
 
 ## Features
 
-- **Sync**: GitHub Issues + Projects v2, Jira Cloud, Asana → local SQLite
+- **Sync**: GitHub Issues + Projects v2, Jira, Asana → local SQLite
 - **Write-back**: Close a GitHub Issue → Jira/Asana marked done (and vice versa)
 - **Calendar**: Schedule work sessions on a dedicated Google Calendar
 - **Scheduling engine**: Suggests time blocks based on estimates, due dates, and availability
@@ -45,6 +45,9 @@ nstd sync
 Configuration lives at `~/.config/nstd/config.toml`. Secrets are stored in
 macOS Keychain — the config file contains no credentials and is safe to
 version-control in your dotfiles.
+
+See [Credential Setup Guide](docs/credential-setup.md) for how to obtain
+and configure API tokens for each service.
 
 See [SPEC.md](SPEC_Version4.md) for full configuration schema.
 
